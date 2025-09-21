@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo } from 'react';
@@ -18,6 +17,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableFooter as UiTableFooter,
 } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { FileDown } from 'lucide-react';
@@ -40,7 +40,7 @@ export function MonthlyDueDialog({ open, onOpenChange, invoices, dateRange }: Mo
     const { t } = useTranslation();
 
     const rangeTitle = useMemo(() => {
-        if (!dateRange?.from) return "Due Report";
+        if (!dateRange?.from) return "Grand Total Due Report";
         const from = dateRange.from;
         const to = dateRange.to || from;
 
@@ -56,19 +56,25 @@ export function MonthlyDueDialog({ open, onOpenChange, invoices, dateRange }: Mo
     const reportData = useMemo(() => {
         if (!invoices) return [];
         return invoices
-          .filter(invoice => invoice.dueAmount > 0)
+          .filter(invoice => invoice.dueAmount > 0.001)
           .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }, [invoices]);
+
+    const totalDue = useMemo(() => reportData.reduce((sum, item) => sum + item.dueAmount, 0), [reportData]);
 
     const handleExportExcel = () => {
         const worksheet = XLSX.utils.json_to_sheet(reportData.map(item => ({
             "Date": format(new Date(item.date), 'PP'),
-            "Invoice ID": item.id.slice(-6),
+            "Invoice ID": String(item.id),
             "Customer Name": item.customerName,
             "Total Amount": item.subtotal,
             "Paid Amount": item.paidAmount,
             "Due Amount": item.dueAmount,
         })));
+        // Add total row
+        const totalRow = { "Customer Name": "Grand Total", "Due Amount": totalDue };
+        XLSX.utils.sheet_add_json(worksheet, [totalRow], { skipHeader: true, origin: -1 });
+
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Due Invoices Report");
         XLSX.writeFile(workbook, `due_report.xlsx`);
@@ -81,18 +87,18 @@ export function MonthlyDueDialog({ open, onOpenChange, invoices, dateRange }: Mo
             head: [['Date', 'Inv No', 'Customer Name', 'Total', 'Paid', 'Due']],
             body: reportData.map(item => [
                 format(new Date(item.date), 'PP'),
-                item.id.slice(-6),
+                String(item.id),
                 item.customerName,
-                `৳${item.subtotal.toFixed(2)}`,
-                `৳${item.paidAmount.toFixed(2)}`,
-                `৳${item.dueAmount.toFixed(2)}`,
+                '৳ '+item.subtotal.toFixed(2),
+                '৳ '+item.paidAmount.toFixed(2),
+                '৳ '+item.dueAmount.toFixed(2),
             ]),
+            foot: [['', '', '', '', 'Grand Total', '৳ '+totalDue.toFixed(2)]],
+            footStyles: { fontStyle: 'bold' },
             startY: 22,
         });
         doc.save(`due_report.pdf`);
     };
-
-    const totalDue = useMemo(() => reportData.reduce((sum, item) => sum + item.dueAmount, 0), [reportData]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -100,7 +106,7 @@ export function MonthlyDueDialog({ open, onOpenChange, invoices, dateRange }: Mo
         <DialogHeader>
           <DialogTitle>{rangeTitle}</DialogTitle>
           <DialogDescription>
-            A detailed list of all invoices from this range with an outstanding balance. Total Due: <strong>৳{totalDue.toFixed(2)}</strong>
+            A detailed list of all invoices with an outstanding balance. Grand Total Due: <strong>৳ {totalDue.toFixed(2)}</strong>
           </DialogDescription>
         </DialogHeader>
         
@@ -126,11 +132,11 @@ export function MonthlyDueDialog({ open, onOpenChange, invoices, dateRange }: Mo
                 reportData.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell className="font-mono text-xs">{format(new Date(item.date), 'PP')}</TableCell>
-                    <TableCell className="font-mono text-xs">{item.id.slice(-6)}</TableCell>
+                    <TableCell className="font-mono text-xs">{String(item.id)}</TableCell>
                     <TableCell className="font-medium">{item.customerName}</TableCell>
-                    <TableCell className="text-right font-mono">৳{item.subtotal.toFixed(2)}</TableCell>
-                    <TableCell className="text-right font-mono text-green-600">৳{item.paidAmount.toFixed(2)}</TableCell>
-                    <TableCell className="text-right font-mono font-semibold text-destructive">৳{item.dueAmount.toFixed(2)}</TableCell>
+                    <TableCell className="text-right font-mono">৳ {item.subtotal.toFixed(2)}</TableCell>
+                    <TableCell className="text-right font-mono text-green-600">৳ {item.paidAmount.toFixed(2)}</TableCell>
+                    <TableCell className="text-right font-mono font-semibold text-destructive">৳ {item.dueAmount.toFixed(2)}</TableCell>
                   </TableRow>
                 ))
               ) : (
@@ -141,6 +147,14 @@ export function MonthlyDueDialog({ open, onOpenChange, invoices, dateRange }: Mo
                 </TableRow>
               )}
             </TableBody>
+            {reportData.length > 0 && (
+                <UiTableFooter>
+                    <TableRow>
+                        <TableCell colSpan={5} className="text-right font-bold">Grand Total</TableCell>
+                        <TableCell className="text-right font-bold font-mono">৳ {totalDue.toFixed(2)}</TableCell>
+                    </TableRow>
+                </UiTableFooter>
+            )}
           </Table>
         </ScrollArea>
 

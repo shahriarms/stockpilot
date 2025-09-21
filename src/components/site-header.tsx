@@ -1,7 +1,7 @@
 
 'use client';
 import { Button } from '@/components/ui/button';
-import { UserCircle, LogOut, Settings, KeyRound, Languages, Camera } from 'lucide-react';
+import { UserCircle, LogOut, Settings, KeyRound, Languages, Database } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useUser } from '@/hooks/use-user';
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { RedeemAdminCodeDialog } from './redeem-admin-code-dialog';
 import { ShowAdminCodeDialog } from './show-admin-code-dialog';
 import dynamic from 'next/dynamic';
@@ -26,8 +26,9 @@ import { useSettings } from '@/hooks/use-settings';
 import type { Locale } from '@/lib/types';
 import Link from 'next/link';
 import { StockPilotLogo } from './stock-pilot-logo';
-import { DatabaseStatus } from './database-status';
-import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
+import { useAppData } from '@/hooks/use-app-data';
+import { Loader2 } from 'lucide-react';
+
 
 const LiveClock = dynamic(() => import('./live-clock').then(mod => mod.LiveClock), {
   ssr: false,
@@ -35,15 +36,14 @@ const LiveClock = dynamic(() => import('./live-clock').then(mod => mod.LiveClock
 
 
 export function SiteHeader() {
-  const { user, logout, generateAdminCode, adminCode, updateProfilePicture } = useUser();
+  const { user, logout, generateAdminCode, adminCode } = useUser();
   const { t } = useTranslation();
   const { settings, updateSettings } = useSettings();
+  const { isDbConnected, isAppDataLoading } = useAppData();
 
   const [isRedeemDialogOpen, setRedeemDialogOpen] = useState(false);
   const [isShowCodeDialogOpen, setShowCodeDialogOpen] = useState(false);
   
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   const handleShowCode = () => {
     generateAdminCode();
     setShowCodeDialogOpen(true);
@@ -52,23 +52,7 @@ export function SiteHeader() {
   const handleLocaleChange = (value: string) => {
     updateSettings({ locale: value as Locale });
   }
-
-  const handlePictureChangeClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      updateProfilePicture(file);
-    }
-  };
   
-  const getInitials = (email: string | null) => {
-    if (!email) return 'U';
-    return email.substring(0, 2).toUpperCase();
-  }
-
   if (!user) {
     return (
        <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center justify-center gap-4 border-b bg-card px-4 sm:px-6">
@@ -84,45 +68,53 @@ export function SiteHeader() {
 
   return (
     <>
-      <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileChange}
-          className="hidden"
-          accept="image/png, image/jpeg"
-        />
-      <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between border-b bg-card px-4 sm:px-6">
-        {/* Left Section: Logo and Title */}
-        <Link href="/dashboard" className="flex items-center gap-2">
-            <StockPilotLogo className="w-8 h-8" />
-            <h1 className="text-base sm:text-xl font-semibold">
-                <span className="text-foreground">Mahmud Engineering Shop</span>
-            </h1>
-        </Link>
+      <header className="sticky top-0 z-20 grid h-16 grid-cols-3 items-center border-b bg-card px-4 sm:px-6">
+        {/* Left Section: Empty */}
+        <div className="flex justify-start">
+        </div>
+
+        {/* Center Section: Logo and Title */}
+        <div className="flex items-center justify-center">
+            <Link href="/dashboard" className="flex items-center gap-2">
+                <StockPilotLogo className="w-10 h-10" />
+                <h1 className="hidden sm:block text-xl sm:text-2xl font-bold">
+                    <span className="text-foreground">Mahmud Engineering Shop</span>
+                </h1>
+            </Link>
+        </div>
         
-        {/* Right Section: Status, Clock, and User Menu */}
-        <div className="flex items-center gap-2 sm:gap-4">
-            <div className="hidden sm:flex"><DatabaseStatus /></div>
+        {/* Right Section: Clock and User Menu */}
+        <div className="flex items-center justify-end gap-2 sm:gap-4">
             <div className="hidden sm:flex"><LiveClock /></div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="rounded-full">
-                    <Avatar>
-                        <AvatarImage src={user.photoURL || undefined} alt="User profile picture" />
-                        <AvatarFallback>{getInitials(user.email)}</AvatarFallback>
-                    </Avatar>
+                  <UserCircle className="h-8 w-8" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>
                   <div>{t('my_account_label')}</div>
                   <div className="text-xs font-normal text-muted-foreground">{user.email} ({t(`role_${user.role}` as any)})</div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                 <DropdownMenuItem onClick={handlePictureChangeClick}>
-                    <Camera className="mr-2 h-4 w-4" />
-                    <span>Change Picture</span>
-                </DropdownMenuItem>
+                 <DropdownMenuItem disabled>
+                    <div className="flex items-center w-full">
+                        <Database className="mr-2 h-4 w-4" />
+                        <span>Database:</span>
+                        <div className="flex items-center gap-2 ml-auto">
+                            {isAppDataLoading ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                                <span className={`h-2.5 w-2.5 rounded-full ${ isDbConnected ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                            )}
+                            <span className="font-mono text-xs font-semibold">
+                                {isAppDataLoading ? '...' : (isDbConnected ? 'Online' : 'Local')}
+                            </span>
+                        </div>
+                    </div>
+                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger>
                     <Languages className="mr-2 h-4 w-4" />

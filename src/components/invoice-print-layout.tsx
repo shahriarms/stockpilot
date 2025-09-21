@@ -13,7 +13,7 @@ interface InvoicePrintLayoutProps {
     customerName: string;
     customerAddress: string;
     customerPhone: string;
-    invoiceItems: DraftInvoiceItem[];
+    invoiceItems: DraftInvoiceItem[] | InvoiceItem[];
     subtotal: number;
     paidAmount: number;
     dueAmount: number;
@@ -54,60 +54,63 @@ export const InvoicePrintLayout = React.forwardRef<HTMLDivElement, InvoicePrintL
 
     const memoStyles: React.CSSProperties = {
         background: '#fff',
-        fontFamily: 'sans-serif',
+        color: '#000',
+        fontFamily: isBn ? "'SolaimanLipi', 'Times New Roman', sans-serif" : "'Times New Roman', sans-serif",
         fontSize: '14px',
-        color: '#333',
-        maxWidth: '800px',
+        width: '100%',
+        maxWidth: isPos ? '80mm' : '800px',
         margin: 'auto',
-        padding: '2rem',
-        border: '2px dashed #ccc',
+        padding: isPos ? '0.25rem' : '2rem',
+        border: isPos ? 'none' : '2px dashed #ccc',
         boxSizing: 'border-box',
     };
 
     const headerStyles: React.CSSProperties = {
         textAlign: 'center',
-        marginBottom: '2rem',
+        marginBottom: isPos ? '1rem' : '2rem',
     };
     
     const h1Styles: React.CSSProperties = {
-      fontSize: '2rem',
+      fontSize: isPos ? '1.5rem' : '2rem',
       fontWeight: 'bold',
       color: '#000',
       margin: '0 0 0.5rem 0',
     };
 
     const h2Styles: React.CSSProperties = {
-      fontSize: '1.5rem',
+      fontSize: isPos ? '1.2rem' : '1.5rem',
       fontWeight: 600,
       color: '#158a67',
       margin: 0,
     }
 
     const customerDetailsStyles: React.CSSProperties = {
-        display: 'flex',
+        display: isPos ? 'block' : 'flex',
         justifyContent: 'space-between',
-        marginBottom: '2rem',
+        marginBottom: isPos ? '1rem' : '2rem',
         borderTop: '1px solid #eee',
         borderBottom: '1px solid #eee',
-        padding: '1rem 0',
+        padding: isPos ? '0.5rem 0' : '1rem 0',
+        fontSize: isPos ? '12px' : '14px',
     };
 
     const tableStyles: React.CSSProperties = {
         width: '100%',
         borderCollapse: 'collapse',
-        marginBottom: '2rem',
+        marginBottom: isPos ? '1rem' : '2rem',
+        fontSize: isPos ? '12px' : '14px',
     };
 
     const thStyles: React.CSSProperties = {
         borderBottom: '2px solid #ccc',
-        padding: '0.75rem',
+        padding: isPos ? '0.25rem' : '0.75rem',
         textAlign: 'left',
         fontWeight: 600,
     };
 
     const tdStyles: React.CSSProperties = {
         borderBottom: '1px solid #eee',
-        padding: '0.75rem',
+        padding: isPos ? '0.25rem' : '0.75rem',
     };
 
     const totalsSectionStyles: React.CSSProperties = {
@@ -117,18 +120,19 @@ export const InvoicePrintLayout = React.forwardRef<HTMLDivElement, InvoicePrintL
     };
     
     const totalsTableStyles: React.CSSProperties = {
-        width: '250px',
+        width: isPos ? '150px' : '250px',
+        fontSize: isPos ? '12px' : '14px',
     };
 
     const totalRowStyles: React.CSSProperties = {
         fontWeight: 'bold',
-        fontSize: '1.1rem',
+        fontSize: isPos ? '1.1em' : '1.1rem',
         borderTop: '2px solid #333',
     };
 
     const footerStyles: React.CSSProperties = {
         textAlign: 'center',
-        marginTop: '3rem',
+        marginTop: isPos ? '1rem' : '3rem',
         paddingTop: '1rem',
         borderTop: '1px solid #eee',
         fontSize: '12px',
@@ -137,22 +141,32 @@ export const InvoicePrintLayout = React.forwardRef<HTMLDivElement, InvoicePrintL
 
     return (
         <div ref={ref}>
-            <div style={memoStyles} className="print-source">
+            <style>
+                {`
+                    @media print {
+                        @page {
+                            size: ${isPos ? '80mm auto' : 'A4'};
+                            margin: 0;
+                        }
+                    }
+                `}
+            </style>
+            <div style={memoStyles}>
                 <header style={headerStyles}>
                     <h1 style={h1Styles}>{t('memo_title')}</h1>
                     <h2 style={h2Styles}>{t('shop_name')}</h2>
-                    <p className={cn(isBn ? 'font-bangla' : '')} style={{ margin: '0.25rem 0' }}>{t('shop_description')}</p>
-                    <p style={{ margin: '0.25rem 0' }}>Email: engmahmud.mm@gmail.com</p>
+                    <p className={cn(isBn ? 'font-bangla' : '', isPos ? 'text-xs' : '')} style={{ margin: '0.25rem 0' }}>{t('shop_description')}</p>
+                    <p style={{ margin: '0.25rem 0', fontSize: isPos ? '10px' : '12px' }}>Email: engmahmud.mmm@gmail.com</p>
                 </header>
                 
                 <div style={customerDetailsStyles}>
                     <div>
                          <p style={{ margin: '0.25rem 0' }}><strong style={{ fontWeight: 600 }}>{t('customer_name_label')}:</strong> {customerName || '..................'}</p>
-                         <p style={{ margin: '0.25rem 0' }}><strong style={{ fontWeight: 600 }}>{t('customer_address_label')}:</strong> {customerAddress || '..................'}</p>
+                         {!isPos && <p style={{ margin: '0.25rem 0' }}><strong style={{ fontWeight: 600 }}>{t('customer_address_label')}:</strong> {customerAddress || '..................'}</p>}
                          <p style={{ margin: '0.25rem 0' }}><strong style={{ fontWeight: 600 }}>{t('customer_phone_label')}:</strong> {customerPhone || '..................'}</p>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
-                        <p style={{ margin: '0.25rem 0' }}><strong style={{ fontWeight: 600 }}>{t('invoice_no_label')}:</strong> {invoiceId ? invoiceId : '...'}</p>
+                    <div style={{ textAlign: isPos ? 'left' : 'right' }}>
+                        <p style={{ margin: '0.25rem 0' }}><strong style={{ fontWeight: 600 }}>{t('invoice_no_label')}:</strong> {invoiceId}</p>
                         <p style={{ margin: '0.25rem 0' }}><strong style={{ fontWeight: 600 }}>{t('date_label')}:</strong> {currentDate || '...'}</p>
                     </div>
                 </div>
@@ -171,8 +185,8 @@ export const InvoicePrintLayout = React.forwardRef<HTMLDivElement, InvoicePrintL
                             <tr key={item.id}>
                                 <td style={tdStyles}>{item.name}</td>
                                 <td style={{...tdStyles, textAlign: 'center'}}>{item.quantity}</td>
-                                <td style={{...tdStyles, textAlign: 'right'}}>৳{item.price.toFixed(2)}</td>
-                                <td style={{...tdStyles, textAlign: 'right', fontWeight: 500}}>৳{(item.price * item.quantity).toFixed(2)}</td>
+                                <td style={{...tdStyles, textAlign: 'right'}}>৳ {item.price.toFixed(2)}</td>
+                                <td style={{...tdStyles, textAlign: 'right', fontWeight: 500}}>৳ {(item.price * item.quantity).toFixed(2)}</td>
                             </tr>
                         )) : (
                             <tr>
@@ -187,15 +201,15 @@ export const InvoicePrintLayout = React.forwardRef<HTMLDivElement, InvoicePrintL
                         <tbody>
                             <tr>
                                 <td style={{ textAlign: 'right', padding: '0.25rem' }}>{t('subtotal_label')}:</td>
-                                <td style={{ textAlign: 'right', padding: '0.25rem', fontWeight: 600 }}>৳{subtotal.toFixed(2)}</td>
+                                <td style={{ textAlign: 'right', padding: '0.25rem', fontWeight: 600 }}>৳ {subtotal.toFixed(2)}</td>
                             </tr>
                              <tr>
                                 <td style={{ textAlign: 'right', padding: '0.25rem' }}>{t('paid_label')}:</td>
-                                <td style={{ textAlign: 'right', padding: '0.25rem' }}>৳{paidAmount.toFixed(2)}</td>
+                                <td style={{ textAlign: 'right', padding: '0.25rem' }}>৳ {paidAmount.toFixed(2)}</td>
                             </tr>
                              <tr style={totalRowStyles}>
                                 <td style={{ textAlign: 'right', padding: '0.5rem 0.25rem' }}>{t('due_label')}:</td>
-                                <td style={{ textAlign: 'right', padding: '0.5rem 0.25rem' }}>{dueAmount < 0 ? '(৳' + Math.abs(dueAmount).toFixed(2) + ')' : '৳' + dueAmount.toFixed(2)}</td>
+                                <td style={{ textAlign: 'right', padding: '0.5rem 0.25rem' }}>{dueAmount < 0 ? '(৳ ' + Math.abs(dueAmount).toFixed(2) + ')' : '৳ ' + dueAmount.toFixed(2)}</td>
                             </tr>
                         </tbody>
                      </table>

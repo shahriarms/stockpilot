@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from 'react';
@@ -9,18 +10,7 @@ import { isSameDay, isWithinInterval, startOfDay, endOfDay, startOfMonth, endOfM
 import { useSettings } from './use-settings';
 import * as productActions from '@/lib/actions/product-actions';
 import * as dataActions from '@/lib/actions/data-actions';
-
-const STORAGE_KEYS = {
-    products: 'stockpilot-products',
-    invoices: 'stockpilot-invoices',
-    buyers: 'stockpilot-buyers',
-    expenses: 'stockpilot-expenses',
-    employees: 'stockpilot-employees',
-    attendance: 'stockpilot-attendance',
-    salaryPayments: 'stockpilot-salary-payments',
-    payments: 'stockpilot-payments',
-    lastInvoiceNumber: 'stockpilot-last-invoice-number',
-};
+import { Loader2 } from 'lucide-react';
 
 interface AppDataContextType {
     products: Product[];
@@ -33,6 +23,7 @@ interface AppDataContextType {
     payments: Payment[];
     isAppDataLoading: boolean;
     isDbConnected: boolean;
+    lastInvoiceId: number;
     
     // Product Functions
     addProduct: (product: Omit<Product, 'id' | 'sellingPrice'>) => Promise<void>;
@@ -43,6 +34,8 @@ interface AppDataContextType {
 
     // Invoice & Buyer Functions
     addInvoice: (draftInvoice: DraftInvoice) => Promise<number | null>;
+    deleteInvoice: (invoiceId: number) => Promise<void>;
+    printInvoice: (invoice: Invoice) => Promise<void>;
     getBuyerById: (buyerId: string) => Buyer | undefined;
     getInvoicesForBuyer: (buyerId: string) => Invoice[];
     getInvoicesForDateRange: (startDate: Date, endDate: Date) => Invoice[];
@@ -50,7 +43,7 @@ interface AppDataContextType {
 
 
     // Payment Functions
-    addPayment: (payment: Omit<Payment, 'id' | 'date'>) => Promise<void>;
+    addPayment: (payment: Omit<Payment, 'id' | 'date'>) => Promise<{ payment: Payment; updatedInvoice: Invoice } | null>;
     getPaymentsForInvoice: (invoiceId: number) => Payment[];
 
     // Expense Functions
@@ -75,25 +68,6 @@ interface AppDataContextType {
 
 const AppDataContext = createContext<AppDataContextType | undefined>(undefined);
 
-async function printPosReceipt(settings: any, orderData: any) {
-    const printerConfig = {
-        type: settings.posPrinterType,
-        options: {
-            host: settings.posPrinterHost,
-            port: settings.posPrinterPort,
-        }
-    };
-    const response = await fetch('/api/print', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ printer: printerConfig, data: orderData }),
-    });
-    if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.message || 'An unknown error occurred during printing.');
-    }
-}
-
 export function DataProvider({ children }: { children: ReactNode }) {
     const { toast } = useToast();
     const { settings } = useSettings();
@@ -108,6 +82,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const [payments, setPayments] = useState<Payment[]>([]);
     const [isAppDataLoading, setIsAppDataLoading] = useState(true);
     const [isDbConnected, setIsDbConnected] = useState(false);
+    const [lastInvoiceId, setLastInvoiceId] = useState(0);
 
     const loadAllData = useCallback(async () => {
         setIsAppDataLoading(true);
@@ -128,28 +103,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
                 setAttendance(serverData.attendance);
                 setSalaryPayments(serverData.salaryPayments);
                 setPayments(serverData.payments);
+                setLastInvoiceId(serverData.invoices[0]?.id || 0);
             } else {
-                // Load all data from localStorage
-                Object.keys(STORAGE_KEYS).forEach(key => {
-                    const savedData = localStorage.getItem(STORAGE_KEYS[key as keyof typeof STORAGE_KEYS]);
-                    if (savedData) {
-                        try {
-                            const parsedData = JSON.parse(savedData);
-                            switch (key) {
-                                case 'products': setProducts(parsedData || []); break;
-                                case 'invoices': setInvoices(parsedData || []); break;
-                                case 'buyers': setBuyers(parsedData || []); break;
-                                case 'expenses': setExpenses(parsedData || []); break;
-                                case 'employees': setEmployees(parsedData || []); break;
-                                case 'attendance': setAttendance(parsedData || []); break;
-                                case 'salaryPayments': setSalaryPayments(parsedData || []); break;
-                                case 'payments': setPayments(parsedData || []); break;
-                            }
-                        } catch (e) {
-                             console.error(`Failed to parse ${key} from localStorage`, e);
-                        }
-                    }
-                });
+                toast({ variant: 'destructive', title: 'Database Connection Failed', description: 'Could not connect to the database. Please ensure it is running and accessible.' });
             }
         } catch (error) {
             console.error("Failed to load app data:", error);
@@ -162,28 +118,38 @@ export function DataProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         loadAllData();
     }, [loadAllData]);
+    
+    const printInvoice = useCallback(async (invoice: Invoice) => {
+        if (settings.printFormat === 'pos' && settings.posPrinterType !== 'disabled') {
+            const printerConfig = {
+                type: settings.posPrinterType,
+                options: { host: settings.posPrinterHost, port: settings.posPrinterPort }
+            };
+            const orderData = {
+                orderId: String(invoice.id),
+                customerName: invoice.customerName,
+                items: invoice.items,
+                subtotal: invoice.subtotal,
+                tax: 0,
+                total: invoice.subtotal
+            };
 
-    const usePersistedState = <T,>(key: keyof typeof STORAGE_KEYS, state: T) => {
-        useEffect(() => {
-            if (!isAppDataLoading && !isDbConnected) {
-                localStorage.setItem(STORAGE_KEYS[key], JSON.stringify(state));
+            const response = await fetch('/api/print', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ printer: printerConfig, data: orderData }),
+            });
+
+            if (!response.ok) {
+                const result = await response.json();
+                toast({ variant: 'destructive', title: 'POS Print Error', description: result.message || 'Failed to print to POS device.' });
+                throw new Error(result.message || 'Failed to print to POS device.');
+            } else {
+                 toast({ title: 'Print Job Sent', description: 'Sent to POS printer successfully.' });
             }
-        }, [state]);
-    };
-    
-    usePersistedState('products', products);
-    usePersistedState('invoices', invoices);
-    usePersistedState('buyers', buyers);
-    usePersistedState('expenses', expenses);
-    usePersistedState('employees', employees);
-    usePersistedState('attendance', attendance);
-    usePersistedState('salaryPayments', salaryPayments);
-    usePersistedState('payments', payments);
-    
-    // --- Generic Add/Update/Delete handlers for local state ---
-    const localAdd = <T extends {id: any}>(setter: React.Dispatch<React.SetStateAction<T[]>>, item: T) => setter(prev => [item, ...prev]);
-    const localUpdate = <T extends {id: any}>(setter: React.Dispatch<React.SetStateAction<T[]>>, id: any, updatedItem: T) => setter(prev => prev.map(i => i.id === id ? updatedItem : i));
-    const localDelete = <T extends {id: any}>(setter: React.Dispatch<React.SetStateAction<T[]>>, id: any) => setter(prev => prev.filter(i => i.id !== id));
+        }
+    }, [settings, toast]);
+
 
     const addProduct = useCallback(async (productData: Omit<Product, 'id' | 'sellingPrice'>) => {
         try {
@@ -192,7 +158,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             toast({ title: "Product Added", description: `${productData.name} has been added.` });
         } catch (error) {
             console.error("Failed to add product:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Failed to add product.' });
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to add product. Check DB connection.' });
         }
     }, [toast, loadAllData]);
 
@@ -202,7 +168,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             await loadAllData();
         } catch (error) {
              console.error("Failed to add multiple products:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Failed to add products in bulk.' });
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to add products in bulk. Check DB connection.' });
         }
     }, [toast, loadAllData]);
 
@@ -213,7 +179,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             toast({ title: "Product Updated", description: `Details for ${updatedData.name} have been updated.` });
         } catch (error) {
             console.error("Failed to update product:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Failed to update product.' });
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to update product. Check DB connection.' });
         }
     }, [toast, loadAllData]);
 
@@ -224,7 +190,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             toast({ title: "Product Deleted", description: `The product has been removed.` });
         } catch (error) {
              console.error("Failed to delete product:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete product.' });
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete product. Check DB connection.' });
         }
     }, [toast, loadAllData]);
 
@@ -238,45 +204,37 @@ export function DataProvider({ children }: { children: ReactNode }) {
           customerPhone: draftInvoice.customerPhone,
           items: draftInvoice.items.map(({ originalPrice, ...item }) => item),
           subtotal: draftInvoice.subtotal,
-          paidAmount: draftInvoice.paidAmount,
+          paidAmount: draftInvoice.paidAmount || 0,
           dueAmount: draftInvoice.dueAmount,
           date: new Date().toISOString(),
         };
         
-        let newInvoice: Invoice;
-        if (isDbConnected) {
-             newInvoice = await dataActions.addInvoice(invoiceToSave, invoiceToSave.items);
-             await loadAllData();
-        } else {
-             const lastId = invoices.reduce((max, i) => Math.max(i.id, max), 0);
-             newInvoice = { ...invoiceToSave, id: lastId + 1};
-             
-             let buyerId = draftInvoice.buyerId || '';
-             const existingBuyer = buyers.find(b => b.name === draftInvoice.customerName && b.phone === draftInvoice.customerPhone);
-             if (existingBuyer) {
-                 buyerId = existingBuyer.id;
-                 setBuyers(prev => prev.map(b => b.id === buyerId ? { ...b, invoiceIds: [...b.invoiceIds, String(newInvoice.id)] } : b));
-             } else if (draftInvoice.customerName) {
-                 buyerId = `buyer-${Date.now()}`;
-                 const newBuyer: Buyer = { id: buyerId, name: draftInvoice.customerName, address: draftInvoice.customerAddress, phone: draftInvoice.customerPhone, invoiceIds: [String(newInvoice.id)] };
-                 setBuyers(prev => [...prev, newBuyer]);
-             }
-             setInvoices(prev => [newInvoice, ...prev]);
-        }
-        
-        if (settings.printFormat === 'pos' && settings.posPrinterType !== 'disabled') {
-            const orderData = { orderId: newInvoice.id, customerName: draftInvoice.customerName, items: draftInvoice.items, subtotal: draftInvoice.subtotal, tax: 0, total: draftInvoice.subtotal };
-            try {
-                await printPosReceipt(settings, orderData);
-            } catch(e) {
-                console.error("POS printing failed:", e);
-                throw e;
+        try {
+            const newInvoice = await dataActions.addInvoice(invoiceToSave, invoiceToSave.items);
+            await loadAllData();
+            
+            if (settings.printFormat === 'pos' && settings.posPrinterType !== 'disabled') {
+               await printInvoice(newInvoice);
             }
+
+            return newInvoice.id;
+        } catch (error) {
+            console.error("Failed to save invoice:", error);
+            throw error; // Re-throw to be caught by the calling function
         }
-        
-        return newInvoice.id;
-    }, [isDbConnected, loadAllData, settings, invoices, buyers]);
+    }, [loadAllData, settings, printInvoice]);
     
+    const deleteInvoice = useCallback(async (invoiceId: number) => {
+        try {
+            await dataActions.deleteInvoice(invoiceId);
+            await loadAllData();
+            toast({ title: "Invoice Deleted", description: `Invoice #${invoiceId} has been successfully deleted.` });
+        } catch (error) {
+            console.error("Failed to delete invoice:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete invoice. Check DB connection.' });
+        }
+    }, [toast, loadAllData]);
+
     const getBuyerById = useCallback((buyerId: string) => buyers.find(b => b.id === buyerId), [buyers]);
 
     const getInvoicesForBuyer = useCallback((buyerId: string) => {
@@ -309,55 +267,52 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }, [products]);
 
 
-    const addPayment = useCallback(async (paymentData: Omit<Payment, 'id' | 'date'>) => {
-        if (isDbConnected) {
-            await dataActions.addPayment(paymentData);
-            await loadAllData();
-        } else {
-             const newPayment: Payment = { ...paymentData, id: `pay-${Date.now()}`, date: new Date().toISOString() };
-             setPayments(prev => [...prev, newPayment]);
-             setInvoices(prev => prev.map(inv => 
-                inv.id === paymentData.invoiceId 
-                ? { ...inv, paidAmount: inv.paidAmount + paymentData.amount, dueAmount: inv.dueAmount - paymentData.amount } 
-                : inv
-             ));
+    const addPayment = useCallback(async (paymentData: Omit<Payment, 'id' | 'date'>): Promise<{ payment: Payment; updatedInvoice: Invoice } | null> => {
+        try {
+            const { payment: newPayment, updatedInvoice } = await dataActions.addPayment(paymentData);
+            // Instead of full reload, update state locally for immediate feedback
+            setPayments(prev => [newPayment, ...prev]);
+            setInvoices(prev => prev.map(inv => inv.id === updatedInvoice.id ? updatedInvoice : inv));
+            return { payment: newPayment, updatedInvoice };
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Payment Error', description: error.message || "Failed to process payment. Check DB connection."});
+            return null;
         }
-    }, [isDbConnected, loadAllData]);
+    }, [toast]);
 
     const getPaymentsForInvoice = useCallback((invoiceId: number) => {
         return payments.filter(p => p.invoiceId === invoiceId).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }, [payments]);
 
     const addExpense = useCallback(async (expenseData: Omit<Expense, 'id'>) => {
-        if (isDbConnected) {
+        try {
             await dataActions.addExpense(expenseData);
-        } else {
-            const newExpense: Expense = { ...expenseData, id: `exp-${Date.now()}` };
-            localAdd(setExpenses, newExpense);
+            await loadAllData();
+            toast({ title: "Expense Added", description: `New expense of ৳ ${expenseData.amount} has been recorded.` });
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to add expense. Check DB connection.' });
         }
-        await loadAllData();
-        toast({ title: "Expense Added", description: `New expense of ৳${expenseData.amount} has been recorded.` });
-    }, [toast, isDbConnected, loadAllData]);
+    }, [toast, loadAllData]);
 
     const updateExpense = useCallback(async (expenseId: string, updatedData: Omit<Expense, 'id'>) => {
-        if(isDbConnected) {
+        try {
             await dataActions.updateExpense(expenseId, updatedData);
-        } else {
-            localUpdate(setExpenses, expenseId, { id: expenseId, ...updatedData });
+            await loadAllData();
+            toast({ title: "Expense Updated", description: "The expense details have been updated." });
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to update expense. Check DB connection.' });
         }
-        await loadAllData();
-        toast({ title: "Expense Updated", description: "The expense details have been updated." });
-    }, [toast, isDbConnected, loadAllData]);
+    }, [toast, loadAllData]);
 
     const deleteExpense = useCallback(async (expenseId: string) => {
-        if(isDbConnected) {
+        try {
             await dataActions.deleteExpense(expenseId);
-        } else {
-            localDelete(setExpenses, expenseId);
+            await loadAllData();
+            toast({ title: "Expense Deleted", description: "The expense record has been removed." });
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete expense. Check DB connection.' });
         }
-        await loadAllData();
-        toast({ title: "Expense Deleted", description: "The expense record has been removed." });
-    }, [toast, isDbConnected, loadAllData]);
+    }, [toast, loadAllData]);
     
     const getExpensesForDateRange = useCallback((startDate: Date, endDate: Date) => {
         const start = startOfDay(startDate);
@@ -366,65 +321,57 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }, [expenses]);
 
     const addEmployee = useCallback(async (employeeData: Omit<Employee, 'id'>) => {
-        if (isDbConnected) {
+        try {
             await dataActions.addEmployee(employeeData);
-        } else {
-            const newEmployee: Employee = { ...employeeData, id: `emp-${Date.now()}` };
-            localAdd(setEmployees, newEmployee);
+            await loadAllData();
+            toast({ title: "Employee Added", description: `${employeeData.name} has been added.` });
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to add employee. Check DB connection.' });
         }
-        await loadAllData();
-        toast({ title: "Employee Added", description: `${employeeData.name} has been added.` });
-    }, [toast, isDbConnected, loadAllData]);
+    }, [toast, loadAllData]);
 
     const updateEmployee = useCallback(async (employeeId: string, updatedData: Omit<Employee, 'id'>) => {
-        if (isDbConnected) {
+        try {
             await dataActions.updateEmployee(employeeId, updatedData);
-        } else {
-            localUpdate(setEmployees, employeeId, { id: employeeId, ...updatedData });
+            await loadAllData();
+            toast({ title: "Employee Updated", description: "The employee details have been updated." });
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to update employee. Check DB connection.' });
         }
-        await loadAllData();
-        toast({ title: "Employee Updated", description: "The employee details have been updated." });
-    }, [toast, isDbConnected, loadAllData]);
+    }, [toast, loadAllData]);
 
     const deleteEmployee = useCallback(async (employeeId: string) => {
-        if (isDbConnected) {
+        try {
             await dataActions.deleteEmployee(employeeId);
-        } else {
-            localDelete(setEmployees, employeeId);
+            await loadAllData();
+            toast({ title: "Employee Deleted", description: "The employee record has been removed." });
+        } catch (error) {
+             toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete employee. Check DB connection.' });
         }
-        await loadAllData();
-        toast({ title: "Employee Deleted", description: "The employee record has been removed." });
-    }, [toast, isDbConnected, loadAllData]);
+    }, [toast, loadAllData]);
 
     const markAttendance = useCallback(async (employeeId: string, date: Date, status: AttendanceStatus) => {
         const attendanceData = { employeeId, date: date.toISOString(), status };
-        if (isDbConnected) {
+        try {
             await dataActions.markAttendance(attendanceData);
-        } else {
-            const dateString = date.toISOString().split('T')[0];
-            const existingRecord = attendance.find(a => a.employeeId === employeeId && a.date.startsWith(dateString));
-            if (existingRecord) {
-                localUpdate(setAttendance, existingRecord.id, { ...existingRecord, status });
-            } else {
-                localAdd(setAttendance, { ...attendanceData, id: `att-${Date.now()}`});
-            }
+            await loadAllData();
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to mark attendance. Check DB connection.' });
         }
-        await loadAllData();
-    }, [isDbConnected, loadAllData, attendance]);
+    }, [loadAllData, toast]);
 
     const getAttendanceForDate = useCallback((date: Date) => {
         return attendance.filter(a => isSameDay(new Date(a.date), date));
     }, [attendance]);
 
     const addSalaryPayment = useCallback(async (paymentData: Omit<SalaryPayment, 'id'>) => {
-        if (isDbConnected) {
+        try {
             await dataActions.addSalaryPayment(paymentData);
-        } else {
-             const newPayment: SalaryPayment = { ...paymentData, id: `sal-${Date.now()}` };
-             localAdd(setSalaryPayments, newPayment);
+            await loadAllData();
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to add salary payment. Check DB connection.' });
         }
-        await loadAllData();
-    }, [isDbConnected, loadAllData]);
+    }, [loadAllData, toast]);
 
     const getPaymentsForMonth = useCallback((employeeId: string, startDate: Date, endDate: Date) => {
         return salaryPayments.filter(p => 
@@ -448,22 +395,30 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }, [getPaymentsForMonth]);
 
     const value = useMemo(() => ({
-        products, invoices, buyers, expenses, employees, attendance, salaryPayments, payments, isAppDataLoading, isDbConnected,
+        products, invoices, buyers, expenses, employees, attendance, salaryPayments, payments, isAppDataLoading, isDbConnected, lastInvoiceId,
         addProduct, addMultipleProducts, updateProduct, deleteProduct, getProductById,
-        addInvoice, getBuyerById, getInvoicesForBuyer, getInvoicesForDateRange, getGrossProfitForDateRange,
+        addInvoice, deleteInvoice, printInvoice, getBuyerById, getInvoicesForBuyer, getInvoicesForDateRange, getGrossProfitForDateRange,
         addPayment, getPaymentsForInvoice,
         addExpense, updateExpense, deleteExpense, getExpensesForDateRange,
         addEmployee, updateEmployee, deleteEmployee, markAttendance, getAttendanceForDate,
         addSalaryPayment, getPaymentsForMonth, getSalaryPaymentsForDateRange, getDueSalaryForMonth,
     }), [
-        products, invoices, buyers, expenses, employees, attendance, salaryPayments, payments, isAppDataLoading, isDbConnected,
+        products, invoices, buyers, expenses, employees, attendance, salaryPayments, payments, isAppDataLoading, isDbConnected, lastInvoiceId,
         addProduct, addMultipleProducts, updateProduct, deleteProduct, getProductById,
-        addInvoice, getBuyerById, getInvoicesForBuyer, getInvoicesForDateRange, getGrossProfitForDateRange,
+        addInvoice, deleteInvoice, printInvoice, getBuyerById, getInvoicesForBuyer, getInvoicesForDateRange, getGrossProfitForDateRange,
         addPayment, getPaymentsForInvoice,
         addExpense, updateExpense, deleteExpense, getExpensesForDateRange,
         addEmployee, updateEmployee, deleteEmployee, markAttendance, getAttendanceForDate,
         addSalaryPayment, getPaymentsForMonth, getSalaryPaymentsForDateRange, getDueSalaryForMonth
     ]);
+    
+    if (isAppDataLoading) {
+        return (
+            <div className="flex h-screen w-full items-center justify-center bg-background">
+                <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+        );
+    }
 
     return (
         <AppDataContext.Provider value={value}>
@@ -479,3 +434,5 @@ export function useAppData() {
     }
     return context;
 }
+
+    

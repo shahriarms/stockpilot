@@ -250,11 +250,7 @@ export default function ProductsPage() {
                 </div>
                 {/* Table Section */}
                 <div className="relative rounded-md border overflow-auto flex-1">
-                {isAppDataLoading ? (
-                <div className="absolute inset-0 flex justify-center items-center">
-                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                </div>
-                ) : filteredProducts.length > 0 ? (
+                {filteredProducts.length > 0 ? (
                 <Table>
                     <TableHeader className="sticky top-0 bg-card z-10">
                     <TableRow>
@@ -274,7 +270,7 @@ export default function ProductsPage() {
                         </TableCell>
                         <TableCell className="hidden md:table-cell">{product.category} / {product.subCategory}</TableCell>
                         <TableCell className="text-right font-semibold hidden sm:table-cell">
-                            ৳{product.sellingPrice.toFixed(2)}
+                            ৳ {product.sellingPrice.toFixed(2)}
                         </TableCell>
                         <TableCell className={`text-right font-medium ${product.stock === 0 ? 'text-destructive' : ''}`}>
                             {product.stock} <span className="text-xs text-muted-foreground">{product.mainCategory === 'Material' ? 'kg' : 'pcs'}</span>
@@ -374,3 +370,5 @@ export default function ProductsPage() {
     </div>
   );
 }
+
+    

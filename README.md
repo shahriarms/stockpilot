@@ -1,4 +1,5 @@
 
+
 # StockPilot - Inventory Management System
 
 StockPilot is a modern, responsive inventory management application designed to streamline stock, invoice, and expense tracking for small businesses. Built with Next.js, Firebase, and Tailwind CSS.
@@ -28,20 +29,20 @@ This project is configured to run as a complete, isolated system using Docker. F
 
 ### Step 1: Build and Run the Entire System
 
-Open your terminal in the project's root directory and run this single command. It will build and start your application, the database, and the database management tool all at once.
+Open your terminal (like **Windows PowerShell**) in the project's root directory and run this single command. It will build and start your application, the database, and the database management tool all at once.
 
 ```bash
 docker-compose up -d --build
 ```
 
-- **`--build`**: Use this flag the very first time you run the command.
-- **`-d`**: Runs everything in the background.
+- **`--build`**: Use this flag the very first time you run the command. It builds the necessary Docker images.
+- **`-d`**: Runs everything in the background (detached mode).
 
 To stop the entire system later, run: `docker-compose down`
 
 ### Step 2: Set Up the Database (First-Time Only)
 
-After the command in Step 1 is finished, run this second command in the same terminal. This will create all the necessary tables (products, invoices, buyers, expenses, etc.) inside your running database.
+After the command in Step 1 is finished (it might take a minute), run this second command in the same terminal. This will create all the necessary tables (products, invoices, buyers, expenses, etc.) inside your running database.
 
 ```bash
 npm run db:setup
@@ -79,6 +80,72 @@ That's it! Now, whenever you log in to your PC, Docker will start automatically,
 
 ---
 
+## প্রজেক্টের গঠন এবং কোডের ব্যাখ্যা (Project Structure and Code Explanation)
+
+এই অধ্যায়ে অ্যাপ্লিকেশনটির কোড কীভাবে সাজানো হয়েছে এবং কোন ফাইল কী কাজ করে, তা সহজ বাংলায় ব্যাখ্যা করা হলো।
+
+### ১. ফোল্ডারের গঠন (Folder Structure)
+
+আপনার প্রজেক্টটি কয়েকটি প্রধান ফোল্ডারে বিভক্ত:
+
+-   **/src/app**: এটি আপনার অ্যাপ্লিকেশনের মূল কেন্দ্র। এখানকার প্রতিটি ফোল্ডার একটি ওয়েব পেজ বা রুটের প্রতিনিধিত্ব করে।
+    -   **/src/app/login**: লগইন পেজের কোড এখানে থাকে।
+    -   **/src/app/dashboard**: এটি লগইন করার পর মূল ড্যাশবোর্ড। এর ভেতরের প্রতিটি ফোল্ডার (যেমন `products`, `invoice`, `settings`) একেকটি সাব-পেজ তৈরি করে।
+-   **/src/components**: অ্যাপ্লিকেশনের সমস্ত পুনরায় ব্যবহারযোগ্য UI অংশ (যেমন বাটন, কার্ড, ডায়ালগ) এখানে থাকে।
+    -   **/src/components/ui**: `ShadCN` থেকে আসা বেসিক UI কম্পোনেন্টগুলো (যেমন `Button.tsx`, `Card.tsx`) এখানে থাকে।
+    -   অন্যান্য কম্পোনেন্ট (যেমন `site-header.tsx`, `add-product-dialog.tsx`) নির্দিষ্ট কাজ করার জন্য তৈরি করা হয়েছে।
+-   **/src/hooks**: এগুলো কাস্টম React হুক, যা বিভিন্ন কম্পোনেন্টে ডেটা এবং লজিক শেয়ার করার জন্য ব্যবহৃত হয়।
+    -   `use-app-data.tsx`: এটি অ্যাপ্লিকেশনের সমস্ত ডেটা (পণ্য, চালান, খরচ ইত্যাদি) লোড করে এবং সেগুলোকে পরিবর্তন (যোগ, সম্পাদনা, মোছা) করার ফাংশন সরবরাহ করে। এটি আপনার অ্যাপের ডেটা ম্যানেজমেন্টের মূল কেন্দ্র।
+    -   `use-user.tsx`: এটি ব্যবহারকারীর লগইন অবস্থা, ভূমিকা (অ্যাডমিন/কর্মচারী) এবং প্রোফাইল পরিচালনা করে।
+    -   `use-settings.tsx`: প্রিন্ট এবং ভাষা সংক্রান্ত সেটিংস পরিচালনা করে।
+-   **/src/lib**: এই ফোল্ডারে সহায়ক ফাংশন, ডেটা টাইপ এবং সার্ভার-সাইড লজিক থাকে।
+    -   `actions`: এখানে সার্ভার অ্যাকশন ফাইলগুলো থাকে, যা সরাসরি ক্লায়েন্ট থেকে সার্ভারে (এবং ডাটাবেসে) ডেটা পাঠানোর কাজ করে।
+    -   `firebase`: ফায়ারবেস কনফিগারেশন এবং প্রমাণীকরণ (authentication) পরিচালনা করে।
+    -   `i18n`: এখানে বাংলা এবং ইংরেজি ভাষার ফাইলগুলো (`bn.ts`, `en.ts`) থাকে।
+    -   `types.ts`: পুরো অ্যাপ্লিকেশনের জন্য ডেটা স্ট্রাকচার (যেমন `Product`, `Invoice`) নির্ধারণ করে।
+-   **/src/services**: এই ফোল্ডারে ডাটাবেসের সাথে সরাসরি যোগাযোগের লজিক থাকে।
+    -   `product-service.postgres.ts`: পণ্য সংক্রান্ত ডাটাবেস কোয়েরি (যেমন পণ্য আনা, যোগ করা, আপডেট করা) পরিচালনা করে।
+    -   `data-service.postgres.ts`: অন্যান্য সমস্ত ডেটা (চালান, ক্রেতা, খরচ) সংক্রান্ত ডাটাবেস কোয়েরি পরিচালনা করে।
+-   **/scripts**: `setup-db.ts` ফাইলটি Docker কন্টেইনার চালু হওয়ার পর ডাটাবেসে প্রয়োজনীয় টেবিল তৈরি করার জন্য ব্যবহৃত হয়।
+-   **docker-compose.yml**: এই ফাইলটি আপনার অ্যাপ্লিকেশন, ডাটাবেস (`PostgreSQL`), এবং ডাটাবেস ম্যানেজমেন্ট টুল (`pgAdmin`) একসাথে চালানোর জন্য Docker-কে নির্দেশনা দেয়।
+
+### ২. ডেটা ফ্লো কীভাবে কাজ করে (How Data Flows)
+
+অ্যাপ্লিকেশনটির ডেটা ফ্লো একটি সুনির্দিষ্ট পথে কাজ করে, যা এটিকে নির্ভরযোগ্য এবং সহজে রক্ষণাবেক্ষণযোগ্য করে তুলেছে:
+
+1.  **UI Component (যেমন, `products/page.tsx`)**: ব্যবহারকারী যখন কোনো বাটনে ক্লিক করে (যেমন "Add Product"), তখন UI কম্পোনেন্টটি `useAppData` হুক থেকে প্রাপ্ত একটি ফাংশনকে কল করে (যেমন `addProduct`)।
+
+2.  **Custom Hook (`use-app-data.tsx`)**: এই হুকটি সেই কলটি গ্রহণ করে। এটি সরাসরি ডাটাবেসের সাথে কথা বলে না, বরং একটি সার্ভার অ্যাকশনকে কল করে।
+
+3.  **Server Action (`lib/actions/product-actions.ts`)**: সার্ভার অ্যাকশন ফাইলটি ক্লায়েন্ট এবং সার্ভারের মধ্যে একটি নিরাপদ সেতু হিসেবে কাজ করে। এটি নিশ্চিত করে যে কোডটি শুধুমাত্র সার্ভারে চলবে। এই ফাইলটি `services` ফোল্ডারের সংশ্লিষ্ট সার্ভিসকে কল করে।
+
+4.  **Service (`services/product-service.postgres.ts`)**: সার্ভিস ফাইলটি ডাটাবেসের সাথে সরাসরি যোগাযোগের জন্য দায়ী। এটি প্রয়োজনীয় SQL কোয়েরি (যেমন `INSERT`, `UPDATE`, `SELECT`) চালায়।
+
+5.  **ডেটা রিফ্রেশ**: ডাটাবেসে কোনো পরিবর্তন হওয়ার পর, `useAppData` হুক `loadAllData()` ফাংশন কল করে পুরো ডেটা আবার লোড করে এবং UI স্বয়ংক্রিয়ভাবে নতুন ডেটা দিয়ে রিফ্রেশ হয়ে যায়।
+
+এই আর্কিটেকচারের সুবিধা হলো, UI এবং ডাটাবেস লজিক সম্পূর্ণ আলাদা থাকে, যা কোডকে পরিষ্কার এবং সুরক্ষিত রাখে।
+
+### ৩. লগইন এবং ব্যবহারকারী ব্যবস্থাপনা (Login and User Management)
+
+অ্যাপ্লিকেশনটি ব্যবহারকারী সনাক্ত করার জন্য **Firebase Authentication** ব্যবহার করে।
+
+- **লগইন এবং সাইনআপ:** `src/app/login/page.tsx` এবং `src/app/signup/page.tsx` ফাইল দুটি ব্যবহারকারীকে লগইন বা নতুন অ্যাকাউন্ট তৈরি করতে দেয়। যখন একজন ব্যবহারকারী তার ইমেল এবং পাসওয়ার্ড দিয়ে লগইন করার চেষ্টা করে, তখন `signInWithEmailAndPassword` ফাংশনটি (যা Firebase থেকে আসে) কল করা হয়। Firebase তখন ইমেল এবং পাসওয়ার্ডটি যাচাই করে। সফল হলে, ব্যবহারকারীকে ড্যাশবোর্ডে পাঠানো হয়। ব্যর্থ হলে, একটি ত্রুটির বার্তা দেখানো হয়।
+
+- **ব্যবহারকারীর ভূমিকা (Admin/Employee):** `src/hooks/use-user.tsx` ফাইলে, `ADMIN_EMAIL` নামে একটি ভেরিয়েবল আছে। যদি কোনো ব্যবহারকারীর ইমেল এই ভেরিয়েবলের সাথে মিলে যায়, তবে তাকে 'admin' হিসেবে গণ্য করা হয়। অন্য সব ব্যবহারকারীকে 'employee' হিসেবে গণ্য করা হয়।
+
+- **অ্যাডমিন পরিবর্তন:** আপনি যদি অ্যাডমিন পরিবর্তন করতে চান, তবে আপনাকে শুধুমাত্র `src/hooks/use-user.tsx` ফাইলে `ADMIN_EMAIL` ভেরিয়েবলের মান পরিবর্তন করে আপনার নতুন অ্যাডমিনের ইমেল ঠিকানাটি সেখানে লিখতে হবে।
+
+### ৪. ফায়ারবেস কনফিগারেশন পরিবর্তন (Changing Firebase Configuration)
+
+আপনি যদি এই অ্যাপ্লিকেশনটি আপনার নিজের ফায়ারবেস প্রোজেক্টের সাথে সংযোগ করতে চান, তবে আপনাকে `src/lib/firebase/firebase.ts` ফাইলটি পরিবর্তন করতে হবে।
+
+- এই ফাইলে `firebaseConfig` নামে একটি অবজেক্ট রয়েছে।
+- আপনাকে আপনার Firebase প্রোজেক্টের সেটিংস থেকে `apiKey`, `authDomain`, `projectId` ইত্যাদি মানগুলো কপি করে এই `firebaseConfig` অবজেক্টে পেস্ট করতে হবে।
+- এটি করার পর, অ্যাপ্লিকেশনটি আপনার নতুন ফায়ারবেস প্রোজেক্ট ব্যবহার করা শুরু করবে।
+
+---
+
+
 ## Database Management (ডেটাবেস পরিচালনা)
 
 Your data is valuable. Here’s how to interact with, back up, and restore your database.
@@ -107,7 +174,7 @@ You will now have a `psql` prompt (e.g., `stockpilot_db=>`) where you can run SQ
 
 This is the easiest method for most users.
 
-**How to Connect to Your Database in pgAdmin:**
+**How to Connect to Your Database in pgAdmin (One-Time Setup Only)**:
 1.  Open pgAdmin at [http://localhost:8080](http://localhost:8080) and log in.
 2.  Right-click on **Servers** -> **Create** -> **Server...**.
 3.  In the **General** tab, give it a name (e.g., `StockPilot Docker DB`).
@@ -118,6 +185,8 @@ This is the easiest method for most users.
     - **Username**: `user`
     - **Password**: `password`
 5.  Click **Save**. You should now see your `stockpilot_db` database in the sidebar.
+
+**Note:** You only need to do this once. Because we use a Docker volume (`pgadmin_data`) in `docker-compose.yml`, pgAdmin remembers this server connection even after you stop and restart the containers.
 
 **Backing Up with pgAdmin:**
 1.  In the pgAdmin browser, expand **Servers** -> **StockPilot Docker DB** -> **Databases**.
@@ -173,3 +242,6 @@ Your database is now restored from the `backup.sql` file.
 
 ---
 *This README provides a comprehensive guide for the recommended Docker ecosystem, ensuring simplicity and reliability.*
+
+
+    

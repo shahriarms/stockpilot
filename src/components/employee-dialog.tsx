@@ -68,25 +68,25 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
     const form = useForm<EmployeeFormValues>({
         resolver: zodResolver(employeeSchema),
         defaultValues: isEditMode
-            ? { ...employee, joiningDate: new Date(employee.joiningDate) }
+            ? { ...employee, joiningDate: new Date(employee.joiningDate), salary: employee.salary || undefined }
             : {
                 name: '',
                 phone: '',
                 address: '',
                 role: '',
-                salary: 0,
+                salary: undefined,
                 joiningDate: new Date(),
             },
     });
 
     useEffect(() => {
         if (open) {
-            form.reset(isEditMode ? { ...employee, joiningDate: new Date(employee.joiningDate) } : {
+            form.reset(isEditMode ? { ...employee, joiningDate: new Date(employee.joiningDate), salary: employee.salary || undefined } : {
                 name: '',
                 phone: '',
                 address: '',
                 role: '',
-                salary: 0,
+                salary: undefined,
                 joiningDate: new Date(),
             });
         }
@@ -187,7 +187,7 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
                                         <div className="relative">
                                             <span className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground">৳</span>
                                             <FormControl>
-                                                <Input type="number" placeholder="0.00" className="pl-8" {...field} />
+                                                <Input type="number" placeholder="0.00" className="pl-8" {...field} value={field.value ?? ''} />
                                             </FormControl>
                                         </div>
                                         <FormMessage />
@@ -234,3 +234,5 @@ export function EmployeeDialog({ open, onOpenChange, employee }: EmployeeDialogP
         </Dialog>
     );
 }
+
+    

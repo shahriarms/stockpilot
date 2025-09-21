@@ -1,4 +1,3 @@
-
 'use client';
 
 import {
@@ -265,3 +264,5 @@ export function EditProductDialog({ open, onOpenChange, product }: EditProductDi
     </Dialog>
   );
 }
+
+    

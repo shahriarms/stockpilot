@@ -13,9 +13,7 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [],
   },
-  experimental: {
-    allowedDevOrigins: ["*.cloudworkstations.dev"],
-  },
+  allowedDevOrigins: ["*.cloudworkstations.dev"],
 };
 
 export default nextConfig;

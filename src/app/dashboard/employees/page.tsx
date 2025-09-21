@@ -37,7 +37,7 @@ import {
 } from '@/components/ui/popover';
 import { PlusCircle, MoreHorizontal, Pencil, Trash2, CalendarIcon, Users, UserCheck, UserX, NotebookText, Loader2 } from 'lucide-react';
 import { EmployeeDialog } from '@/components/employee-dialog';
-import { format } from 'date-fns';
+import { format, isToday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/hooks/use-user';
 import {
@@ -104,6 +104,11 @@ export default function EmployeesPage() {
     };
 
     const handleAttendanceChange = (employeeId: string, status: AttendanceStatus) => {
+        // Rule: Only admins can edit past/future attendance. Employees can only edit for today.
+        if (user?.role !== 'admin' && !isToday(selectedDate)) {
+            alert("You can only change attendance for the current day.");
+            return;
+        }
         markAttendance(employeeId, selectedDate, status);
     };
 
@@ -131,10 +136,6 @@ export default function EmployeesPage() {
                 return '';
         }
     };
-
-    if (isAppDataLoading) {
-      return <div className="flex h-full w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
-    }
 
     return (
         <div className="flex flex-col gap-6">
@@ -263,18 +264,18 @@ export default function EmployeesPage() {
                                         <TableCell className="hidden md:table-cell">{employee.role}</TableCell>
                                         <TableCell className="hidden lg:table-cell">{employee.phone}</TableCell>
                                         <TableCell className="hidden lg:table-cell">{format(new Date(employee.joiningDate), 'PP')}</TableCell>
-                                        <TableCell className="text-right font-mono">${employee.salary.toFixed(2)}</TableCell>
+                                        <TableCell className="text-right font-mono">৳ {employee.salary.toFixed(2)}</TableCell>
                                         <TableCell>
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" className="h-8 w-8 p-0">
+                                                    <Button variant="ghost" className="h-8 w-8 p-0" disabled={user?.role !== 'admin'}>
                                                         <MoreHorizontal className="h-4 w-4" />
                                                     </Button>
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent align="end">
-                                                    <DropdownMenuItem onClick={() => handleEdit(employee)} disabled={user?.role !== 'admin'}><Pencil className="mr-2 h-4 w-4"/> {t('edit_button')}</DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => handleEdit(employee)}><Pencil className="mr-2 h-4 w-4"/> {t('edit_button')}</DropdownMenuItem>
                                                     <DropdownMenuSeparator />
-                                                    <DropdownMenuItem onClick={() => handleDelete(employee)} disabled={user?.role !== 'admin'} className="text-destructive"><Trash2 className="mr-2 h-4 w-4"/> {t('delete_button')}</DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => handleDelete(employee)} className="text-destructive"><Trash2 className="mr-2 h-4 w-4"/> {t('delete_button')}</DropdownMenuItem>
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
                                         </TableCell>

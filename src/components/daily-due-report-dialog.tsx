@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo } from 'react';
@@ -18,6 +17,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableFooter as UiTableFooter,
 } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { FileDown } from 'lucide-react';
@@ -40,13 +40,13 @@ export function DailyDueReportDialog({ open, onOpenChange, invoices }: DailyDueR
     const reportData = useMemo(() => {
         if (!invoices) return [];
         return invoices
-          .filter(invoice => invoice.dueAmount > 0)
+          .filter(invoice => invoice.dueAmount > 0.001) // Use a small epsilon for float comparison
           .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }, [invoices]);
 
     const handleExportExcel = () => {
         const worksheet = XLSX.utils.json_to_sheet(reportData.map(item => ({
-            "Invoice ID": item.id.slice(-6),
+            "Invoice ID": String(item.id),
             "Customer Name": item.customerName,
             "Total Amount": item.subtotal,
             "Paid Amount": item.paidAmount,
@@ -63,11 +63,11 @@ export function DailyDueReportDialog({ open, onOpenChange, invoices }: DailyDueR
         (doc as any).autoTable({
             head: [['Inv No', 'Customer Name', 'Total', 'Paid', 'Due']],
             body: reportData.map(item => [
-                item.id.slice(-6),
+                String(item.id),
                 item.customerName,
-                `৳${item.subtotal.toFixed(2)}`,
-                `৳${item.paidAmount.toFixed(2)}`,
-                `৳${item.dueAmount.toFixed(2)}`,
+                '৳ '+item.subtotal.toFixed(2),
+                '৳ '+item.paidAmount.toFixed(2),
+                '৳ '+item.dueAmount.toFixed(2),
             ]),
             startY: 22,
         });
@@ -82,7 +82,7 @@ export function DailyDueReportDialog({ open, onOpenChange, invoices }: DailyDueR
         <DialogHeader>
           <DialogTitle>Today's Due Report</DialogTitle>
           <DialogDescription>
-            A detailed list of all invoices from today with an outstanding balance. Total Due: <strong>৳{totalDue.toFixed(2)}</strong>
+            A detailed list of all invoices from today with an outstanding balance. Total Due: <strong>৳ {totalDue.toFixed(2)}</strong>
           </DialogDescription>
         </DialogHeader>
         
@@ -106,11 +106,11 @@ export function DailyDueReportDialog({ open, onOpenChange, invoices }: DailyDueR
               {reportData.length > 0 ? (
                 reportData.map((item) => (
                   <TableRow key={item.id}>
-                    <TableCell className="font-mono text-xs">{item.id.slice(-6)}</TableCell>
+                    <TableCell className="font-mono text-xs">{String(item.id)}</TableCell>
                     <TableCell className="font-medium">{item.customerName}</TableCell>
-                    <TableCell className="text-right font-mono">৳{item.subtotal.toFixed(2)}</TableCell>
-                    <TableCell className="text-right font-mono text-green-600">৳{item.paidAmount.toFixed(2)}</TableCell>
-                    <TableCell className="text-right font-mono font-semibold text-destructive">৳{item.dueAmount.toFixed(2)}</TableCell>
+                    <TableCell className="text-right font-mono">৳ {item.subtotal.toFixed(2)}</TableCell>
+                    <TableCell className="text-right font-mono text-green-600">৳ {item.paidAmount.toFixed(2)}</TableCell>
+                    <TableCell className="text-right font-mono font-semibold text-destructive">৳ {item.dueAmount.toFixed(2)}</TableCell>
                   </TableRow>
                 ))
               ) : (
@@ -121,6 +121,14 @@ export function DailyDueReportDialog({ open, onOpenChange, invoices }: DailyDueR
                 </TableRow>
               )}
             </TableBody>
+            {reportData.length > 0 && (
+                <UiTableFooter>
+                    <TableRow>
+                        <TableCell colSpan={4} className="text-right font-bold">Grand Total</TableCell>
+                        <TableCell className="text-right font-bold font-mono">৳ {totalDue.toFixed(2)}</TableCell>
+                    </TableRow>
+                </UiTableFooter>
+            )}
           </Table>
         </ScrollArea>
 

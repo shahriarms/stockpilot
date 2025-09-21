@@ -1,4 +1,3 @@
-
 'use client';
 
 import {
@@ -267,3 +266,5 @@ export function AddProductDialog({ open, onOpenChange }: AddProductDialogProps) 
     </Dialog>
   );
 }
+
+    

@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from 'react';
@@ -21,8 +20,10 @@ interface PaymentReceiptProps {
 }
 
 export const PaymentReceipt = React.forwardRef<HTMLDivElement, PaymentReceiptProps>(
-  ({ buyer, invoice, paymentHistory, newPaymentAmount = 0 }, ref) => {
-    const totalPaid = invoice.paidAmount + newPaymentAmount;
+  ({ buyer, invoice, paymentHistory, newPaymentAmount }, ref) => {
+    // The `invoice` prop is already the *updated* invoice from the server or local state.
+    // Its `paidAmount` includes the new payment. No need to add `newPaymentAmount` again.
+    const totalPaid = invoice.paidAmount || 0;
     const currentDue = invoice.subtotal - totalPaid;
 
     return (
@@ -32,11 +33,11 @@ export const PaymentReceipt = React.forwardRef<HTMLDivElement, PaymentReceiptPro
             <div className="text-center mb-6">
               <h1 className="text-2xl font-bold text-primary">পেমেন্ট রশিদ (Payment Receipt)</h1>
               <h2 className="text-xl font-bold">মাহমুদ ইঞ্জিনিয়ারিং শপ</h2>
-              <p className="text-xs">এখানে ওয়েডিং, জিন, শিট সহ সকল প্রকার ওয়র্কশপ এর মালামাল এবং ফার্নিচার সামগ্রি বিক্রয় করা হয়।</p>
-              <p className="text-xs">Email: engmahmud.mm@gmail.com</p>
+              <p className="text-xs">এখানে এঙ্গেল, পাতি, স্কয়ারবার, শিট সহ সর্বপ্রকার ওয়ার্কশপ এর মালামাল এবং গ্রাইভিং মেশিন, ওয়েলডিং মেশিন, ড্রিল মেশিন, হাই স্পীড কাটার ও যন্ত্রপাতি বিক্রয় করা হয়।</p>
+              <p className="text-xs">E-mail: engmahmud.mmm@gmail.com</p>
             </div>
             <div className="flex justify-between border-b pb-2 mb-4">
-              <span>ক্রঃ নং (Inv No): {invoice.id}</span>
+              <span>ক্রঃ নং (Inv No): {String(invoice.id)}</span>
               <span>তারিখ (Date): {new Date().toLocaleDateString()}</span>
             </div>
             <div className="mb-4">
@@ -56,7 +57,7 @@ export const PaymentReceipt = React.forwardRef<HTMLDivElement, PaymentReceiptPro
               <TableBody>
                 <TableRow>
                   <TableCell className="text-black font-bold"> চালান মোট (Invoice Total)</TableCell>
-                  <TableCell className="text-black text-right font-bold">৳{invoice.subtotal.toFixed(2)}</TableCell>
+                  <TableCell className="text-black text-right font-bold">৳ {invoice.subtotal.toFixed(2)}</TableCell>
                 </TableRow>
               </TableBody>
             </Table>
@@ -73,7 +74,7 @@ export const PaymentReceipt = React.forwardRef<HTMLDivElement, PaymentReceiptPro
                 {paymentHistory.length > 0 ? paymentHistory.map(payment => (
                   <TableRow key={payment.id}>
                     <TableCell className="text-black">{new Date(payment.date).toLocaleDateString()}</TableCell>
-                    <TableCell className="text-black text-right">৳{payment.amount.toFixed(2)}</TableCell>
+                    <TableCell className="text-black text-right">৳ {payment.amount.toFixed(2)}</TableCell>
                   </TableRow>
                 )) : (
                   <TableRow>
@@ -87,11 +88,11 @@ export const PaymentReceipt = React.forwardRef<HTMLDivElement, PaymentReceiptPro
               <div className="w-64 space-y-2">
                 <div className="flex justify-between">
                   <span>মোট জমা (Total Paid):</span>
-                  <span>৳{totalPaid.toFixed(2)}</span>
+                  <span>৳ {totalPaid.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between font-bold border-t pt-2">
                   <span>বর্তমান বাকী (Current Due):</span>
-                  <span>৳{currentDue.toFixed(2)}</span>
+                  <span>৳ {currentDue.toFixed(2)}</span>
                 </div>
               </div>
             </div>

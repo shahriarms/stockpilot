@@ -53,6 +53,7 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { useTranslation } from '@/hooks/use-translation';
+import { useUser } from '@/hooks/use-user';
 
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8"];
@@ -66,6 +67,7 @@ interface SummaryStats {
 
 export default function ExpensesPage() {
     const { expenses, isAppDataLoading: isLoading, deleteExpense } = useAppData();
+    const { user } = useUser();
     const { t } = useTranslation();
     const [isDialogOpen, setDialogOpen] = useState(false);
     const [expenseToEdit, setExpenseToEdit] = useState<Expense | null>(null);
@@ -175,7 +177,7 @@ export default function ExpensesPage() {
                     e.mainCategory,
                     e.name,
                     e.description || '-',
-                    `৳${e.amount.toFixed(2)}`,
+                    '৳ '+e.amount.toFixed(2),
                 ]),
             });
             doc.save('expenses.pdf');
@@ -193,10 +195,6 @@ export default function ExpensesPage() {
         }
     };
 
-    if (isLoading) {
-      return <div className="flex h-full w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
-    }
-
     return (
       <div className="flex flex-col gap-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -212,7 +210,7 @@ export default function ExpensesPage() {
                 <DropdownMenuItem onClick={() => handleExport('pdf')}>{t('export_as_pdf')}</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button onClick={handleAddNew} className="flex-1 sm:flex-none">
+            <Button onClick={handleAddNew} className="flex-1 sm:flex-none" disabled={user?.role !== 'admin'}>
               <PlusCircle className="mr-2 h-4 w-4" /> {t('add_expense_button')}
             </Button>
           </div>
@@ -228,7 +226,7 @@ export default function ExpensesPage() {
                 <CardContent>
                     {!summaryStats ? <div className="flex justify-center items-center min-h-[150px]"><Loader2 className="h-8 w-8 animate-spin"/></div> : (
                         <>
-                            <p className="text-3xl font-bold">৳{summaryStats.todayTotal.toFixed(2)}</p>
+                            <p className="text-3xl font-bold">৳ {summaryStats.todayTotal.toFixed(2)}</p>
                             {summaryStats.todayCategoryData.length > 0 ? (
                                 <ChartContainer config={{}} className="min-h-32 mt-4">
                                     <PieChart>
@@ -248,7 +246,7 @@ export default function ExpensesPage() {
             <Card className="lg:col-span-2">
                 <CardHeader>
                     <CardTitle>{t('this_months_expenses_title')}</CardTitle>
-                     {!summaryStats ? <div className="h-5"/> : <CardDescription>{t('total_label')}: <span className="font-bold">৳{summaryStats.monthTotal.toFixed(2)}</span></CardDescription>}
+                     {!summaryStats ? <div className="h-5"/> : <CardDescription>{t('total_label')}: <span className="font-bold">৳ {summaryStats.monthTotal.toFixed(2)}</span></CardDescription>}
                 </CardHeader>
                 <CardContent>
                     {!monthChartData ? <div className="flex justify-center items-center min-h-[200px]"><Loader2 className="h-8 w-8 animate-spin"/></div> : (
@@ -317,11 +315,11 @@ export default function ExpensesPage() {
                                         </TableCell>
                                         <TableCell className="hidden sm:table-cell"><span className="text-sm text-muted-foreground">{expense.mainCategory}</span></TableCell>
                                         <TableCell className="hidden md:table-cell">{format(new Date(expense.date), 'PP')}</TableCell>
-                                        <TableCell className="text-right font-mono">৳{expense.amount.toFixed(2)}</TableCell>
+                                        <TableCell className="text-right font-mono">৳ {expense.amount.toFixed(2)}</TableCell>
                                         <TableCell>
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" className="h-8 w-8 p-0">
+                                                    <Button variant="ghost" className="h-8 w-8 p-0" disabled={user?.role !== 'admin'}>
                                                         <MoreHorizontal className="h-4 w-4" />
                                                     </Button>
                                                 </DropdownMenuTrigger>
@@ -370,5 +368,7 @@ export default function ExpensesPage() {
         </AlertDialog>
 
       </div>
-    )
+    );
 }
+
+    

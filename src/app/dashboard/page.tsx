@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -10,7 +9,7 @@ import {
 } from '@/components/ui/chart';
 import { useAppData } from '@/hooks/use-app-data';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { DollarSign, ShoppingCart, TrendingUp, TrendingDown, Calendar as CalendarIcon, Package, HandCoins, Receipt, Loader2, BadgeIndianRupee, Container, Wallet, RotateCw } from 'lucide-react';
+import { DollarSign, ShoppingCart, TrendingUp, TrendingDown, Calendar as CalendarIcon, Package, HandCoins, Receipt, Loader2, BadgeIndianRupee, Container, Wallet, RotateCw, Users, ThumbsUp, Weight } from 'lucide-react';
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
@@ -21,54 +20,84 @@ import { DailySalesDialog } from '@/components/daily-sales-report-dialog';
 import { DailyExpensesReportDialog } from '@/components/daily-expenses-report-dialog';
 import { DailyDueReportDialog } from '@/components/daily-due-report-dialog';
 import { DailyUnitsSoldReportDialog } from '@/components/daily-units-sold-report-dialog';
+import { DailyAttendanceReportDialog } from '@/components/daily-attendance-report-dialog';
 import { MonthlySalesDialog } from '@/components/monthly-sales-report-dialog';
 import { MonthlyExpensesDialog } from '@/components/monthly-expenses-report-dialog';
 import { MonthlyDueDialog } from '@/components/monthly-due-report-dialog';
 import { MonthlyUnitsSoldDialog } from '@/components/monthly-units-sold-report-dialog';
 import { MonthlySalaryReportDialog } from '@/components/monthly-salary-report-dialog';
 import type { DateRange } from 'react-day-picker';
+import type { Invoice, Expense, SalaryPayment, Attendance, Product } from '@/lib/types';
 
-const initialDateRange: DateRange = {
-    from: startOfMonth(new Date()),
-    to: endOfMonth(new Date()),
-};
 
 export default function Dashboard() {
-  const { products, employees, getInvoicesForDateRange, getExpensesForDateRange, getSalaryPaymentsForDateRange, getGrossProfitForDateRange, isAppDataLoading: isLoading } = useAppData();
+  const { products, employees, getInvoicesForDateRange, getExpensesForDateRange, getSalaryPaymentsForDateRange, getGrossProfitForDateRange, isAppDataLoading: isLoading, getAttendanceForDate, invoices: allInvoices } = useAppData();
   const { t } = useTranslation();
 
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(initialDateRange);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   
-  const [rangeInvoices, setRangeInvoices] = useState<any[]>([]);
-  const [rangeExpenses, setRangeExpenses] = useState<any[]>([]);
-  const [rangeSalaries, setRangeSalaries] = useState<any[]>([]);
-  const [todayInvoices, setTodayInvoices] = useState<any[]>([]);
-  const [todayExpenses, setTodayExpenses] = useState<any[]>([]);
+  const [rangeInvoices, setRangeInvoices] = useState<Invoice[]>([]);
+  const [rangeExpenses, setRangeExpenses] = useState<Expense[]>([]);
+  const [rangeSalaries, setRangeSalaries] = useState<SalaryPayment[]>([]);
+  const [todayInvoices, setTodayInvoices] = useState<Invoice[]>([]);
+  const [todayExpenses, setTodayExpenses] = useState<Expense[]>([]);
+  const [todayAttendance, setTodayAttendance] = useState<Attendance[]>([]);
   
   const [isDailySalesReportOpen, setDailySalesReportOpen] = useState(false);
   const [isDailyExpensesReportOpen, setDailyExpensesReportOpen] = useState(false);
   const [isDailyDueReportOpen, setDailyDueReportOpen] = useState(false);
   const [isDailyUnitsSoldReportOpen, setDailyUnitsSoldReportOpen] = useState(false);
+  const [isDailyAttendanceReportOpen, setDailyAttendanceReportOpen] = useState(false);
   
   const [isMonthlySalesReportOpen, setMonthlySalesReportOpen] = useState(false);
   const [isMonthlyExpensesReportOpen, setMonthlyExpensesReportOpen] = useState(false);
   const [isMonthlyDueReportOpen, setMonthlyDueReportOpen] = useState(false);
   const [isMonthlyUnitsSoldReportOpen, setMonthlyUnitsSoldReportOpen] = useState(false);
   const [isMonthlySalaryReportOpen, setMonthlySalaryReportOpen] = useState(false);
+  
+  // This useEffect ensures all date-sensitive operations run only on the client, preventing hydration errors.
+  useEffect(() => {
+    // Set the initial date range to the current month on the client-side
+    setDateRange({
+        from: startOfMonth(new Date()),
+        to: endOfMonth(new Date()),
+    });
+    // Set today's data on client-side
+    const today = new Date();
+    setTodayInvoices(getInvoicesForDateRange(today, today));
+    setTodayExpenses(getExpensesForDateRange(today, today));
+    setTodayAttendance(getAttendanceForDate(today));
+  }, [getInvoicesForDateRange, getExpensesForDateRange, getAttendanceForDate]);
 
+  // This useEffect updates the date range data when the range changes.
   useEffect(() => {
     if (!isLoading && dateRange?.from && dateRange?.to) {
       setRangeInvoices(getInvoicesForDateRange(dateRange.from, dateRange.to));
       setRangeExpenses(getExpensesForDateRange(dateRange.from, dateRange.to));
       setRangeSalaries(getSalaryPaymentsForDateRange(dateRange.from, dateRange.to));
     }
-     if (!isLoading) {
-      const today = new Date();
-      setTodayInvoices(getInvoicesForDateRange(today, today));
-      setTodayExpenses(getExpensesForDateRange(today, today));
-     }
   }, [isLoading, dateRange, getInvoicesForDateRange, getExpensesForDateRange, getSalaryPaymentsForDateRange]);
 
+
+  const calculateUnitsSold = useCallback((invoices: Invoice[], products: Product[]) => {
+      let materialSoldKg = 0;
+      let hardwareSoldPcs = 0;
+      const productMap = new Map(products.map(p => [p.id, p]));
+
+      invoices.forEach(invoice => {
+          invoice.items.forEach(item => {
+              const product = productMap.get(item.id);
+              if (product) {
+                  if (product.mainCategory === 'Material') {
+                      materialSoldKg += item.quantity;
+                  } else if (product.mainCategory === 'Hardware') {
+                      hardwareSoldPcs += item.quantity;
+                  }
+              }
+          });
+      });
+      return { materialSoldKg, hardwareSoldPcs };
+  }, []);
 
   const rangeStats = useMemo(() => {
     const totalSales = rangeInvoices.reduce((sum, inv) => sum + inv.subtotal, 0);
@@ -77,21 +106,20 @@ export default function Dashboard() {
     const grossProfit = getGrossProfitForDateRange(rangeInvoices);
     const profit = grossProfit - totalExpenses - totalSalaryPaid;
     const totalDue = rangeInvoices.reduce((sum, inv) => sum + inv.dueAmount, 0);
-    const unitsSold = rangeInvoices.reduce((sum, inv) => sum + inv.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0);
-    return { totalSales, totalExpenses, totalSalaryPaid, profit, totalDue, unitsSold };
-  }, [rangeInvoices, rangeExpenses, rangeSalaries, getGrossProfitForDateRange]);
+    const { materialSoldKg, hardwareSoldPcs } = calculateUnitsSold(rangeInvoices, products);
+    return { totalSales, totalExpenses, totalSalaryPaid, profit, totalDue, materialSoldKg, hardwareSoldPcs };
+  }, [rangeInvoices, rangeExpenses, rangeSalaries, getGrossProfitForDateRange, products, calculateUnitsSold]);
   
   const todayStats = useMemo(() => {
       const totalSales = todayInvoices.reduce((sum, inv) => sum + inv.subtotal, 0);
       const totalExpenses = todayExpenses.reduce((sum, exp) => sum + exp.amount, 0);
       const grossProfit = getGrossProfitForDateRange(todayInvoices);
-      // Note: today's salary payments are not typically considered in daily profit, but could be.
-      // For simplicity, we only subtract general expenses for daily profit.
       const profit = grossProfit - totalExpenses;
       const totalDue = todayInvoices.reduce((sum, inv) => sum + inv.dueAmount, 0);
-      const unitsSold = todayInvoices.reduce((sum, inv) => sum + inv.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0);
-      return { totalSales, totalExpenses, profit, totalDue, unitsSold };
-  }, [todayInvoices, todayExpenses, getGrossProfitForDateRange]);
+      const { materialSoldKg, hardwareSoldPcs } = calculateUnitsSold(todayInvoices, products);
+      const presentToday = todayAttendance.filter(a => a.status === 'Present').length;
+      return { totalSales, totalExpenses, profit, totalDue, materialSoldKg, hardwareSoldPcs, presentToday };
+  }, [todayInvoices, todayExpenses, todayAttendance, getGrossProfitForDateRange, products, calculateUnitsSold]);
   
   const { salesChartData, expensesChartData } = useMemo(() => {
     if (!dateRange?.from || !dateRange?.to) return { salesChartData: [], expensesChartData: [] };
@@ -116,7 +144,10 @@ export default function Dashboard() {
   }, [rangeInvoices, rangeExpenses, dateRange]);
 
   const handleReset = useCallback(() => {
-    setDateRange(initialDateRange);
+    setDateRange({
+        from: startOfMonth(new Date()),
+        to: endOfMonth(new Date()),
+    });
   }, []);
 
 
@@ -139,8 +170,8 @@ export default function Dashboard() {
     return format(dateRange.from, 'PPP');
   }, [dateRange]);
 
-  if (isLoading) {
-    return <div className="flex h-full w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+  if (!dateRange) {
+    return null;
   }
 
   return (
@@ -183,8 +214,8 @@ export default function Dashboard() {
                   onSelect={setDateRange}
                   numberOfMonths={1}
                   captionLayout="dropdown-buttons"
-                  fromYear={2019}
-                  toYear={new Date().getFullYear() + 5}
+                  fromYear={2025}
+                  toYear={2050}
                 />
               </PopoverContent>
             </Popover>
@@ -197,35 +228,35 @@ export default function Dashboard() {
         
         {/* Today's Summary Cards */}
         <div>
-            <h2 className="text-lg font-semibold mb-4">Today's Summary</h2>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+            <h2 className="text-lg font-semibold mb-4">{t('todays_summary_title')}</h2>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
                 <Card as="button" onClick={() => setDailySalesReportOpen(true)} className="text-left hover:bg-muted/50 transition-colors">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle className="text-sm font-medium">{t('todays_sales_card_title')}</CardTitle>
                       <DollarSign className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                      <div className="text-2xl font-bold text-green-600">৳{todayStats.totalSales.toFixed(2)}</div>
+                      <div className="text-2xl font-bold">৳ {todayStats.totalSales.toFixed(2)}</div>
                       <p className="text-xs text-muted-foreground">{t('invoices_count_footer', { count: todayInvoices.length })}</p>
                   </CardContent>
                 </Card>
                 <Card as="button" onClick={() => setDailyExpensesReportOpen(true)} className="text-left hover:bg-muted/50 transition-colors">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">{"Today's Expenses"}</CardTitle>
+                      <CardTitle className="text-sm font-medium">{t('todays_expenses_card_title')}</CardTitle>
                       <Receipt className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                      <div className="text-2xl font-bold text-green-600">৳{todayStats.totalExpenses.toFixed(2)}</div>
-                      <p className="text-xs text-muted-foreground">{todayExpenses.length} expense entries</p>
+                      <div className="text-2xl font-bold">৳ {todayStats.totalExpenses.toFixed(2)}</div>
+                      <p className="text-xs text-muted-foreground">{t('expense_entries_footer', { count: todayExpenses.length })}</p>
                   </CardContent>
                 </Card>
-                <Card as="button" onClick={() => setDailyDueReportOpen(true)} className="text-left hover:bg-muted/50 transition-colors">
+                <Card as="button" onClick={() => setDailyDueReportOpen(true)} className="text-left hover:bg-muted/50 transition-colors" disabled={todayStats.totalDue <= 0}>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle className="text-sm font-medium">{t('todays_due_card_title')}</CardTitle>
                       <HandCoins className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                      <div className="text-2xl font-bold text-green-600">৳{todayStats.totalDue.toFixed(2)}</div>
+                      <div className="text-2xl font-bold text-red-600">৳ {todayStats.totalDue.toFixed(2)}</div>
                       <p className="text-xs text-muted-foreground">{t('from_todays_sales_footer')}</p>
                   </CardContent>
                 </Card>
@@ -235,27 +266,44 @@ export default function Dashboard() {
                       <Package className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                      <div className="text-2xl font-bold text-green-600">{todayStats.unitsSold}</div>
-                      <p className="text-xs text-muted-foreground">{t('total_items_footer')}</p>
+                      <div className="flex items-baseline gap-2">
+                        <div className="text-xl font-bold">{todayStats.materialSoldKg.toFixed(2)}</div>
+                        <span className="text-xs text-muted-foreground">kg</span>
+                      </div>
+                      <div className="flex items-baseline gap-2">
+                        <div className="text-xl font-bold">{todayStats.hardwareSoldPcs}</div>
+                        <span className="text-xs text-muted-foreground">pcs</span>
+                      </div>
+                  </CardContent>
+                </Card>
+                 <Card as="button" onClick={() => setDailyAttendanceReportOpen(true)} className="text-left hover:bg-muted/50 transition-colors">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">{t('todays_attendance_card_title')}</CardTitle>
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                      <div className="text-2xl font-bold">{todayStats.presentToday}</div>
+                      <p className="text-xs text-muted-foreground">{t('out_of_total_employees_footer', { total: employees.length })}</p>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Today's Profit</CardTitle>
+                      <CardTitle className="text-sm font-medium">{t('todays_profit_card_title')}</CardTitle>
                       <TrendingUp className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
                       <div className={`text-2xl font-bold ${todayStats.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          ৳{todayStats.profit.toFixed(2)}
+                          ৳ {todayStats.profit.toFixed(2)}
                       </div>
-                      <p className="text-xs text-muted-foreground">Sales - Expenses</p>
+                      <p className="text-xs text-muted-foreground">{t('profit_formula_footer_short')}</p>
                   </CardContent>
                 </Card>
             </div>
         </div>
 
+        {/* Date Range Summary Cards */}
         <div>
-            <h2 className="text-lg font-semibold mb-4">Date Range Summary ({rangeTitle})</h2>
+            <h2 className="text-lg font-semibold mb-4">{t('date_range_summary_title', { range: rangeTitle })}</h2>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
               <Card as="button" onClick={() => setMonthlySalesReportOpen(true)} className="text-left hover:bg-muted/50 transition-colors">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -263,8 +311,8 @@ export default function Dashboard() {
                   <ShoppingCart className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-green-600">৳{rangeStats.totalSales.toFixed(2)}</div>
-                  <p className="text-xs text-muted-foreground">{rangeInvoices.length} invoices in range</p>
+                  <div className="text-2xl font-bold">৳ {rangeStats.totalSales.toFixed(2)}</div>
+                  <p className="text-xs text-muted-foreground">{t('invoices_in_range_footer', { count: rangeInvoices.length })}</p>
                 </CardContent>
               </Card>
               <Card as="button" onClick={() => setMonthlyExpensesReportOpen(true)} className="text-left hover:bg-muted/50 transition-colors">
@@ -273,38 +321,44 @@ export default function Dashboard() {
                   <TrendingDown className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-green-600">৳{rangeStats.totalExpenses.toFixed(2)}</div>
-                   <p className="text-xs text-muted-foreground">{rangeExpenses.length} entries in range</p>
+                  <div className="text-2xl font-bold">৳ {rangeStats.totalExpenses.toFixed(2)}</div>
+                   <p className="text-xs text-muted-foreground">{t('expense_entries_footer', { count: rangeExpenses.length })}</p>
                 </CardContent>
               </Card>
                <Card as="button" onClick={() => setMonthlySalaryReportOpen(true)} className="text-left hover:bg-muted/50 transition-colors">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Salary Paid</CardTitle>
+                  <CardTitle className="text-sm font-medium">{t('salary_paid_card_title')}</CardTitle>
                   <Wallet className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-green-600">৳{rangeStats.totalSalaryPaid.toFixed(2)}</div>
-                  <p className="text-xs text-muted-foreground">{rangeSalaries.length} salary payments</p>
+                  <div className="text-2xl font-bold">৳ {rangeStats.totalSalaryPaid.toFixed(2)}</div>
+                  <p className="text-xs text-muted-foreground">{t('salary_payments_footer', { count: rangeSalaries.length })}</p>
                 </CardContent>
               </Card>
-               <Card as="button" onClick={() => setMonthlyDueReportOpen(true)} className="text-left hover:bg-muted/50 transition-colors">
+               <Card as="button" onClick={() => setMonthlyDueReportOpen(true)} className="text-left hover:bg-muted/50 transition-colors" disabled={rangeStats.totalDue <= 0}>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Due</CardTitle>
+                  <CardTitle className="text-sm font-medium">{t('total_due_card_title')}</CardTitle>
                   <BadgeIndianRupee className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-green-600">৳{rangeStats.totalDue.toFixed(2)}</div>
-                  <p className="text-xs text-muted-foreground">Outstanding from this range</p>
+                  <div className="text-2xl font-bold text-red-600">৳ {rangeStats.totalDue.toFixed(2)}</div>
+                  <p className="text-xs text-muted-foreground">{t('from_this_range_footer')}</p>
                 </CardContent>
               </Card>
-               <Card as="button" onClick={() => setMonthlyUnitsSoldReportOpen(true)} className="text-left hover:bg-muted/50 transition-colors">
+               <Card as="button" onClick={() => setMonthlyUnitsSoldReportOpen(true)} className="text-left hover:bg-muted/so transition-colors">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Units Sold</CardTitle>
+                  <CardTitle className="text-sm font-medium">{t('total_units_sold_card_title')}</CardTitle>
                   <Container className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-green-600">{rangeStats.unitsSold}</div>
-                  <p className="text-xs text-muted-foreground">Total items sold in range</p>
+                     <div className="flex items-baseline gap-2">
+                        <div className="text-xl font-bold">{rangeStats.materialSoldKg.toFixed(2)}</div>
+                        <span className="text-xs text-muted-foreground">kg</span>
+                      </div>
+                      <div className="flex items-baseline gap-2">
+                        <div className="text-xl font-bold">{rangeStats.hardwareSoldPcs}</div>
+                        <span className="text-xs text-muted-foreground">pcs</span>
+                      </div>
                 </CardContent>
               </Card>
               <Card>
@@ -314,9 +368,9 @@ export default function Dashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className={`text-2xl font-bold ${rangeStats.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      ৳{rangeStats.profit.toFixed(2)}
+                      ৳ {rangeStats.profit.toFixed(2)}
                   </div>
-                  <p className="text-xs text-muted-foreground">Gross Profit - (Expenses + Salaries)</p>
+                  <p className="text-xs text-muted-foreground">{t('profit_formula_footer')}</p>
                 </CardContent>
               </Card>
             </div>
@@ -325,7 +379,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card>
               <CardHeader>
-              <CardTitle>Daily Sales for {rangeTitle}</CardTitle>
+              <CardTitle>{t('daily_sales_chart_title', { range: rangeTitle })}</CardTitle>
               <CardDescription>{t('daily_sales_chart_description')}</CardDescription>
               </CardHeader>
               <CardContent>
@@ -345,8 +399,8 @@ export default function Dashboard() {
           </Card>
           <Card>
               <CardHeader>
-                  <CardTitle>Daily Expenses for {rangeTitle}</CardTitle>
-                  <CardDescription>Showing expense data for each day of the range.</CardDescription>
+                  <CardTitle>{t('daily_expenses_chart_title', { range: rangeTitle })}</CardTitle>
+                  <CardDescription>{t('daily_expenses_chart_description')}</CardDescription>
               </CardHeader>
               <CardContent>
                   <ChartContainer config={chartConfig} className="min-h-[250px] w-full">
@@ -365,6 +419,8 @@ export default function Dashboard() {
           </Card>
         </div>
       </div>
+
+      {/* Daily Report Dialogs */}
       <DailySalesDialog
         open={isDailySalesReportOpen}
         onOpenChange={setDailySalesReportOpen}
@@ -386,7 +442,14 @@ export default function Dashboard() {
         invoices={todayInvoices}
         products={products}
       />
+      <DailyAttendanceReportDialog
+        open={isDailyAttendanceReportOpen}
+        onOpenChange={setDailyAttendanceReportOpen}
+        attendance={todayAttendance}
+        employees={employees}
+      />
 
+      {/* Monthly/Date Range Report Dialogs */}
       <MonthlySalesDialog
         open={isMonthlySalesReportOpen}
         onOpenChange={setMonthlySalesReportOpen}

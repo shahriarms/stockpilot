@@ -77,7 +77,7 @@ export default function SalariesPage() {
       return true;
   }, [paymentAmount, isOverpayment, user]);
 
-  const handleAddPayment = useCallback(() => {
+  const handleAddPayment = useCallback(async () => {
     if (!selectedEmployee || typeof paymentAmount !== 'number' || paymentAmount <= 0) {
       toast({
         variant: 'destructive',
@@ -96,7 +96,7 @@ export default function SalariesPage() {
       return;
     }
 
-    addSalaryPayment({
+    await addSalaryPayment({
       employeeId: selectedEmployee.id,
       amount: paymentAmount,
       date: new Date().toISOString(),
@@ -108,10 +108,12 @@ export default function SalariesPage() {
       description: t('payment_successful_toast_description', { amount: paymentAmount.toFixed(2), name: selectedEmployee.name }),
     });
     
-    // Optimistically update the selected employee to re-trigger memos
-    const freshEmployeeData = JSON.parse(JSON.stringify(employees.find(e => e.id === selectedEmployee.id)));
-    setSelectedEmployee(freshEmployeeData);
-
+    // Find the latest version of the employee from the `employees` array to prevent stale state.
+    const freshEmployeeData = employees.find(e => e.id === selectedEmployee.id);
+    if (freshEmployeeData) {
+        setSelectedEmployee(freshEmployeeData);
+    }
+    
     setPaymentAmount('');
 
   }, [selectedEmployee, paymentAmount, isOverpayment, user, addSalaryPayment, toast, employees, t]);
@@ -125,10 +127,6 @@ export default function SalariesPage() {
   const confirmPayment = () => {
     handleAddPayment();
     setConfirmingPayment(false);
-  }
-
-  if (isAppDataLoading) {
-    return <div className="flex h-full w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
   }
 
   return (
@@ -190,9 +188,9 @@ export default function SalariesPage() {
                     <div className="space-y-4">
                         <h3 className="font-semibold text-lg">{t('payment_details_title')}</h3>
                         <div className="p-4 rounded-lg bg-muted/50 space-y-2">
-                            <div className="flex justify-between text-sm"><span>{t('monthly_salary_label')}:</span> <span className="font-mono">৳{selectedEmployee.salary.toFixed(2)}</span></div>
-                            <div className="flex justify-between text-sm"><span>{t('paid_this_month_label')}:</span> <span className="font-mono">৳{paidThisMonth.toFixed(2)}</span></div>
-                            <div className="flex justify-between font-bold text-base border-t pt-2 mt-2"><span>{t('due_this_month_label')}:</span> <span className="font-mono text-primary">৳{dueSalary.toFixed(2)}</span></div>
+                            <div className="flex justify-between text-sm"><span>{t('monthly_salary_label')}:</span> <span className="font-mono">৳ {selectedEmployee.salary.toFixed(2)}</span></div>
+                            <div className="flex justify-between text-sm"><span>{t('paid_this_month_label')}:</span> <span className="font-mono">৳ {paidThisMonth.toFixed(2)}</span></div>
+                            <div className="flex justify-between font-bold text-base border-t pt-2 mt-2"><span>{t('due_this_month_label')}:</span> <span className="font-mono text-primary">৳ {dueSalary.toFixed(2)}</span></div>
                         </div>
 
                         <div className="relative">
@@ -240,7 +238,7 @@ export default function SalariesPage() {
                                         paymentsThisMonth.map(payment => (
                                             <TableRow key={payment.id}>
                                                 <TableCell>{format(new Date(payment.date), 'PP')}</TableCell>
-                                                <TableCell className="text-right font-mono">৳{payment.amount.toFixed(2)}</TableCell>
+                                                <TableCell className="text-right font-mono">৳ {payment.amount.toFixed(2)}</TableCell>
                                             </TableRow>
                                         ))
                                     ) : (
@@ -265,7 +263,7 @@ export default function SalariesPage() {
             <AlertDialogHeader>
                 <AlertDialogTitle>{t('are_you_sure_title')}</AlertDialogTitle>
                 <AlertDialogDescription>
-                    You are about to pay <strong>৳{typeof paymentAmount === 'number' ? paymentAmount.toFixed(2) : '0.00'}</strong> to <strong>{selectedEmployee?.name}</strong>. This action cannot be undone.
+                    You are about to pay <strong>৳ {typeof paymentAmount === 'number' ? paymentAmount.toFixed(2) : '0.00'}</strong> to <strong>{selectedEmployee?.name}</strong>. This action cannot be undone.
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -279,3 +277,5 @@ export default function SalariesPage() {
     </>
   );
 }
+
+    

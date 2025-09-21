@@ -17,7 +17,7 @@ export interface DraftInvoice {
     customerName: string;
     customerAddress: string;
     customerPhone: string;
-    paidAmount: number;
+    paidAmount?: number;
     subtotal: number;
     dueAmount: number;
     cashReceived?: number;
@@ -30,36 +30,50 @@ interface InvoiceFormContextType {
     activeDraftIndex: number;
     activeDraft: DraftInvoice | null;
     addNewDraft: () => void;
-    removeDraft: (draftId: string) => void;
+    removeDraft: (draftId: string | number) => void;
     setActiveDraftIndex: (index: number) => void;
-    updateActiveDraft: (update: Partial<Omit<DraftInvoice, 'id' | 'subtotal' | 'dueAmount' | 'changeAmount' | 'label'>>) => void;
+    updateActiveDraft: (update: Partial<Omit<DraftInvoice, 'subtotal' | 'dueAmount' | 'changeAmount' | 'label'>>) => Promise<DraftInvoice>;
     addInvoiceItem: (product: Product) => void;
-    updateInvoiceItem: (itemId: string, update: Partial<DraftInvoiceItem>) => void;
+    updateInvoiceItem: (itemId: string, update: { [key: string]: string }) => void;
     removeInvoiceItem: (itemId: string) => void;
-    resetActiveDraft: (newInvoiceId?: number) => void;
+    resetActiveDraft: () => void;
     isFormLoading: boolean;
     products: Product[];
 }
 
 const InvoiceFormContext = createContext<InvoiceFormContextType | undefined>(undefined);
 
-const createNewDraft = (index: number = 0): DraftInvoice => ({
-    id: `draft-${Date.now()}-${index}`,
-    label: `New Memo ${index + 1}`,
-    items: [],
-    customerName: '',
-    customerAddress: '',
-    customerPhone: '',
-    paidAmount: 0,
-    subtotal: 0,
-    dueAmount: 0,
-    cashReceived: undefined,
-    changeAmount: 0,
-});
+const createNewDraft = (index: number, lastInvoiceId: number, isLoading: boolean): DraftInvoice => {
+    let id: number | string;
+    let label: string;
 
-const calculateTotals = (items: DraftInvoiceItem[], paidAmount: number, cashReceived?: number) => {
+    if (isLoading) {
+        id = '...';
+        label = `New Memo ${index + 1}`;
+    } else {
+        id = lastInvoiceId + index + 1;
+        label = `Memo #${id}`;
+    }
+
+    return {
+        id,
+        label,
+        items: [],
+        customerName: '',
+        customerAddress: '',
+        customerPhone: '',
+        paidAmount: undefined,
+        subtotal: 0,
+        dueAmount: 0,
+        cashReceived: undefined,
+        changeAmount: 0,
+    }
+};
+
+const calculateTotals = (items: DraftInvoiceItem[], paidAmount?: number, cashReceived?: number) => {
     const subtotal = items.reduce((acc, item) => acc + item.price * item.quantity, 0);
-    const dueAmount = subtotal - paidAmount;
+    const validPaidAmount = (typeof paidAmount === 'number' && !isNaN(paidAmount)) ? paidAmount : 0;
+    const dueAmount = subtotal - validPaidAmount;
     const changeAmount = (cashReceived && cashReceived > subtotal) ? cashReceived - subtotal : 0;
     return { subtotal, dueAmount, changeAmount };
 };
@@ -70,31 +84,29 @@ const STORAGE_KEYS = {
 };
 
 const useInvoiceFormData = (): InvoiceFormContextType => {
-    const { isAppDataLoading, products } = useAppData();
+    const { isAppDataLoading, products, lastInvoiceId } = useAppData();
     const { toast } = useToast();
     
-    const [drafts, setDrafts] = useState<DraftInvoice[]>([createNewDraft(0)]);
+    const [drafts, setDrafts] = useState<DraftInvoice[]>([]);
     const [activeDraftIndex, setActiveDraftIndex] = useState(0);
 
-    // Load state from localStorage on initial mount
+    // Initialize state from localStorage ONCE on mount
     useEffect(() => {
         try {
             const savedDrafts = localStorage.getItem(STORAGE_KEYS.invoiceDrafts);
             const savedIndex = localStorage.getItem(STORAGE_KEYS.activeInvoiceDraftIndex);
 
-            let loadedDrafts: DraftInvoice[] | null = null;
             if (savedDrafts) {
-                const parsedDrafts = JSON.parse(savedDrafts);
+                let parsedDrafts: DraftInvoice[] = JSON.parse(savedDrafts);
                 if (Array.isArray(parsedDrafts) && parsedDrafts.length > 0) {
-                    loadedDrafts = parsedDrafts;
-                    setDrafts(loadedDrafts!);
-                }
-            }
-
-            if (savedIndex) {
-                const parsedIndex = JSON.parse(savedIndex);
-                if (loadedDrafts && parsedIndex < loadedDrafts.length) {
-                    setActiveDraftIndex(parsedIndex);
+                    setDrafts(parsedDrafts);
+                    if (savedIndex) {
+                        const parsedIndex = JSON.parse(savedIndex);
+                        if (parsedIndex < parsedDrafts.length) {
+                            setActiveDraftIndex(parsedIndex);
+                        }
+                    }
+                    return;
                 }
             }
         } catch (error) {
@@ -102,15 +114,42 @@ const useInvoiceFormData = (): InvoiceFormContextType => {
         }
     }, []);
 
+    // Effect to react to data loading and initialize/update drafts if needed
+    useEffect(() => {
+        if (isAppDataLoading) return;
+        
+        if (drafts.length === 0) {
+            // This runs if localStorage was empty or invalid
+            setDrafts([createNewDraft(0, lastInvoiceId, false)]);
+        } else {
+            // This runs on subsequent loads (e.g., after an invoice is created)
+            // It ensures draft IDs are correct if lastInvoiceId has changed.
+            const correctedDrafts = drafts.map((draft, index) => {
+                const newId = lastInvoiceId + index + 1;
+                // Only update if it's a new session or the ID is clearly a placeholder
+                 if (draft.label === `Memo #${draft.id}` || draft.label.startsWith('New Memo')) {
+                     return { ...draft, id: newId, label: `Memo #${newId}` };
+                 }
+                return { ...draft, id: newId };
+            });
+            setDrafts(correctedDrafts);
+        }
+        // We only want this to run when the core data is loaded/reloaded, not on every draft change.
+    }, [isAppDataLoading, lastInvoiceId]);
+
+
     // Save state to localStorage whenever it changes
     useEffect(() => {
-        try {
-            localStorage.setItem(STORAGE_KEYS.invoiceDrafts, JSON.stringify(drafts));
-            localStorage.setItem(STORAGE_KEYS.activeInvoiceDraftIndex, JSON.stringify(activeDraftIndex));
-        } catch (error) {
-            console.error("Failed to save invoice form state to localStorage", error);
+        // Only save to localStorage when app data is fully loaded to avoid saving incomplete state
+        if (drafts.length > 0 && !isAppDataLoading) {
+            try {
+                localStorage.setItem(STORAGE_KEYS.invoiceDrafts, JSON.stringify(drafts));
+                localStorage.setItem(STORAGE_KEYS.activeInvoiceDraftIndex, JSON.stringify(activeDraftIndex));
+            } catch (error) {
+                console.error("Failed to save invoice form state to localStorage", error);
+            }
         }
-    }, [drafts, activeDraftIndex]);
+    }, [drafts, activeDraftIndex, isAppDataLoading]);
     
     const activeDraft = useMemo(() => drafts[activeDraftIndex] || null, [drafts, activeDraftIndex]);
     
@@ -124,20 +163,20 @@ const useInvoiceFormData = (): InvoiceFormContextType => {
             return;
         }
         setDrafts(prev => {
-            const newDraft = createNewDraft(prev.length);
+            const newDraft = createNewDraft(prev.length, lastInvoiceId, isAppDataLoading);
             return [...prev, newDraft];
         });
         setActiveDraftIndex(drafts.length);
-    }, [drafts.length, toast]);
+    }, [drafts.length, toast, lastInvoiceId, isAppDataLoading]);
     
-    const removeDraft = useCallback((draftId: string) => {
+    const removeDraft = useCallback((draftId: string | number) => {
         setDrafts(prev => {
             const draftIndex = prev.findIndex(d => d.id === draftId);
             const newDrafts = prev.filter(d => d.id !== draftId);
             
             if (newDrafts.length === 0) {
                 setActiveDraftIndex(0);
-                return [createNewDraft(0)];
+                return [createNewDraft(0, lastInvoiceId, isAppDataLoading)];
             }
             
             if (activeDraftIndex >= draftIndex && activeDraftIndex > 0) {
@@ -146,24 +185,34 @@ const useInvoiceFormData = (): InvoiceFormContextType => {
 
             return newDrafts;
         });
-    }, [activeDraftIndex]);
+    }, [activeDraftIndex, lastInvoiceId, isAppDataLoading]);
 
-    const updateActiveDraft = useCallback((update: Partial<Omit<DraftInvoice, 'id' | 'subtotal' | 'dueAmount' | 'changeAmount' | 'label'>>) => {
-        setDrafts(prev => prev.map((draft, index) => {
-            if (index === activeDraftIndex) {
-                const updatedDraft = { ...draft, ...update };
-                const { subtotal, dueAmount, changeAmount } = calculateTotals(updatedDraft.items, updatedDraft.paidAmount, updatedDraft.cashReceived);
-                updatedDraft.subtotal = subtotal;
-                updatedDraft.dueAmount = dueAmount;
-                updatedDraft.changeAmount = changeAmount;
-                // Update label if customerName is changed and it's a draft
-                if(typeof updatedDraft.id === 'string' && update.customerName) {
-                    updatedDraft.label = update.customerName || `New Memo ${index + 1}`;
+    const updateActiveDraft = useCallback((update: Partial<Omit<DraftInvoice, 'subtotal' | 'dueAmount' | 'changeAmount' | 'label'>>): Promise<DraftInvoice> => {
+        return new Promise((resolve) => {
+            setDrafts(prev => {
+                let resolvedDraft: DraftInvoice | undefined;
+                const newDrafts = prev.map((draft, index) => {
+                    if (index === activeDraftIndex) {
+                        const newVersion = { ...draft, ...update };
+                        const { subtotal, dueAmount, changeAmount } = calculateTotals(newVersion.items, newVersion.paidAmount, newVersion.cashReceived);
+                        newVersion.subtotal = subtotal;
+                        newVersion.dueAmount = dueAmount;
+                        newVersion.changeAmount = changeAmount;
+                        if(typeof newVersion.id === 'string' || (typeof newVersion.id === 'number' && update.customerName && newVersion.label.startsWith('Memo'))) {
+                            newVersion.label = update.customerName || `Memo #${newVersion.id}`;
+                        }
+                        resolvedDraft = newVersion;
+                        return newVersion;
+                    }
+                    return draft;
+                });
+
+                if (resolvedDraft) {
+                    resolve(resolvedDraft);
                 }
-                return updatedDraft;
-            }
-            return draft;
-        }));
+                return newDrafts;
+            });
+        });
     }, [activeDraftIndex]);
 
     const addInvoiceItem = useCallback((product: Product) => {
@@ -189,10 +238,26 @@ const useInvoiceFormData = (): InvoiceFormContextType => {
         }));
     }, [activeDraftIndex]);
     
-    const updateInvoiceItem = useCallback((itemId: string, itemUpdate: Partial<DraftInvoiceItem>) => {
+    const updateInvoiceItem = useCallback((itemId: string, itemUpdate: { [key: string]: any }) => {
         setDrafts(prev => prev.map((draft, index) => {
             if (index !== activeDraftIndex) return draft;
-            const newItems = draft.items.map(item => item.id === itemId ? { ...item, ...itemUpdate } : item);
+    
+            const newItems = draft.items.map(item => {
+                if (item.id === itemId) {
+                    const updatedItem = { ...item };
+                    const key = Object.keys(itemUpdate)[0];
+                    let value = itemUpdate[key];
+                    
+                    if (key === 'quantity' || key === 'price') {
+                        const parsedValue = parseFloat(value);
+                        // @ts-ignore
+                        updatedItem[key] = isNaN(parsedValue) ? '' : parsedValue;
+                    }
+                    return updatedItem;
+                }
+                return item;
+            });
+    
             const { subtotal, dueAmount, changeAmount } = calculateTotals(newItems, draft.paidAmount, draft.cashReceived);
             return { ...draft, items: newItems, subtotal, dueAmount, changeAmount };
         }));
@@ -207,17 +272,14 @@ const useInvoiceFormData = (): InvoiceFormContextType => {
         }));
     }, [activeDraftIndex]);
 
-    const resetActiveDraft = useCallback((newInvoiceId?: number) => {
+    const resetActiveDraft = useCallback(() => {
         setDrafts(prev => prev.map((draft, index) => {
             if (index === activeDraftIndex) {
-                if (newInvoiceId) {
-                    return {...createNewDraft(index), id: newInvoiceId, label: `Inv #${newInvoiceId}`};
-                }
-                return createNewDraft(index);
+                return createNewDraft(index, lastInvoiceId, isAppDataLoading);
             }
             return draft;
         }));
-    }, [activeDraftIndex]);
+    }, [activeDraftIndex, lastInvoiceId, isAppDataLoading]);
 
 
     return useMemo(() => ({
