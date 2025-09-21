@@ -48,8 +48,8 @@ export function TopNavBar() {
                 <Link
                   href={item.href}
                   className={cn(
-                    "relative flex flex-col items-center justify-center gap-1 rounded-md p-2 text-center transition-all duration-200 ease-in-out transform hover:bg-accent/50 sm:hover:scale-105",
-                     isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
+                    "relative flex flex-col items-center justify-center gap-1 rounded-md p-2 text-center transition-all duration-200 ease-in-out sm:hover:bg-accent/50 sm:hover:scale-105",
+                     isActive ? 'text-primary' : 'text-muted-foreground sm:hover:text-foreground',
                      isMobile ? 'w-16 h-16' : 'w-24 h-20'
                   )}
                 >
