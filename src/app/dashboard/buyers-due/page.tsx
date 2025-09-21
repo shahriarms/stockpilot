@@ -246,11 +246,6 @@ export default function BuyersDuePage() {
     return selectedInvoice.dueAmount;
   }, [selectedInvoice, numericPaymentAmount]);
 
-
-  if (isAppDataLoading) {
-    return <div className="flex h-full w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
-  }
-
   return (
     <>
       <div className="flex flex-col h-full gap-4 no-print">
@@ -484,3 +479,5 @@ export default function BuyersDuePage() {
     </>
   );
 }
+
+    

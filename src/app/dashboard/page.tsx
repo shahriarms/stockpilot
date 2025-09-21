@@ -31,7 +31,7 @@ import type { Invoice, Expense, SalaryPayment, Attendance, Product } from '@/lib
 
 
 export default function Dashboard() {
-  const { products, employees, getInvoicesForDateRange, getExpensesForDateRange, getSalaryPaymentsForDateRange, getGrossProfitForDateRange, isAppDataLoading: isLoading, getAttendanceForDate, invoices: allInvoices } from 'use-app-data';
+  const { products, employees, getInvoicesForDateRange, getExpensesForDateRange, getSalaryPaymentsForDateRange, getGrossProfitForDateRange, isAppDataLoading: isLoading, getAttendanceForDate, invoices: allInvoices } = useAppData();
   const { t } = useTranslation();
 
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
@@ -170,8 +170,8 @@ export default function Dashboard() {
     return format(dateRange.from, 'PPP');
   }, [dateRange]);
 
-  if (isLoading || !dateRange) {
-    return <div className="flex h-full w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+  if (!dateRange) {
+    return null;
   }
 
   return (
@@ -485,3 +485,5 @@ export default function Dashboard() {
     </>
   );
 }
+
+    

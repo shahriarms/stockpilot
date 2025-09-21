@@ -250,11 +250,7 @@ export default function ProductsPage() {
                 </div>
                 {/* Table Section */}
                 <div className="relative rounded-md border overflow-auto flex-1">
-                {isAppDataLoading ? (
-                <div className="absolute inset-0 flex justify-center items-center">
-                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                </div>
-                ) : filteredProducts.length > 0 ? (
+                {filteredProducts.length > 0 ? (
                 <Table>
                     <TableHeader className="sticky top-0 bg-card z-10">
                     <TableRow>
@@ -374,3 +370,5 @@ export default function ProductsPage() {
     </div>
   );
 }
+
+    

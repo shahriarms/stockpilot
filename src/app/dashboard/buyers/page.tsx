@@ -128,10 +128,6 @@ export default function BuyersPage() {
     );
   }, [buyers, buyerSearchTerm]);
   
-  if (isAppDataLoading) {
-    return <div className="flex h-full w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
-  }
-  
   const getInvoiceStatus = (invoice: Invoice) => {
     if (invoice.dueAmount <= 0.001) { 
       return { status: 'paid', color: 'text-green-600' };
@@ -342,3 +338,5 @@ export default function BuyersPage() {
     </>
   );
 }
+
+    

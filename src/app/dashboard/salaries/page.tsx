@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
@@ -126,10 +127,6 @@ export default function SalariesPage() {
   const confirmPayment = () => {
     handleAddPayment();
     setConfirmingPayment(false);
-  }
-
-  if (isAppDataLoading) {
-    return <div className="flex h-full w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
   }
 
   return (
@@ -280,3 +277,5 @@ export default function SalariesPage() {
     </>
   );
 }
+
+    

@@ -137,10 +137,6 @@ export default function EmployeesPage() {
         }
     };
 
-    if (isAppDataLoading) {
-      return <div className="flex h-full w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
-    }
-
     return (
         <div className="flex flex-col gap-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
